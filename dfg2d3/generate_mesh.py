@@ -1,7 +1,24 @@
-import gmsh
+import numpy as np
 from mpi4py import MPI
+import gmsh
+import meshio
 
+def gmsh2meshio(mesh, cell_type: str, prune_z=False):
+    """Extract `GMSH` mesh and return `meshio` mesh.
 
+    Args:
+        mesh: GMSH mesh.
+        cell_type (str): Type of mesh cells.
+        prune_z (bool, optional): Remove the z-component of the mesh to return a 2D mesh. Defaults to False.
+
+    Returns:
+        out_mesh: Converted meshio mesh object.
+    """
+    cells = mesh.get_cells_type(cell_type)
+    cell_data = mesh.get_cell_data("gmsh:geometrical", cell_type)
+    points = mesh.points[:,:2] if prune_z else mesh.points
+    out_mesh = meshio.Mesh(points=points, cells={cell_type: cells}, cell_data={"name_to_read":[cell_data]})
+    return out_mesh
 
 # Geometry dimensions.
 L = 2.2
@@ -91,7 +108,9 @@ if mesh_comm.rank == model_rank:
     gmsh.model.mesh.setOrder(2)
     gmsh.model.mesh.optimize("Netgen")
     
-    gmsh.write("dfg2d3.msh")
+    gmsh.write("./mesh/dfg2d3.msh")
 
 # Write mesh as XDMF file.
-
+mesh_gmsh = meshio.read("./mesh/dfg2d3.msh")
+mesh_mio = gmsh2meshio(mesh_gmsh, "quad9", prune_z=True)
+meshio.write("./mesh/dfg2d3.xdmf", mesh_mio)
