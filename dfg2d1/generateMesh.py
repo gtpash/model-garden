@@ -113,12 +113,16 @@ def main(args):
         
     # Generate the mesh. Use second order quadrilateral elements.
     if COMM.rank == MODELRANK:
+        """
+        Options for meshing, quad elements are not compatible with FEniCS 2019.1.0
+        
         gmsh.option.setNumber("Mesh.Algorithm", args.mesh_algorithm)
         gmsh.option.setNumber("Mesh.RecombinationAlgorithm", 2)
         gmsh.option.setNumber("Mesh.RecombineAll", 1)
         gmsh.option.setNumber("Mesh.SubdivisionAlgorithm", 1)
-        gmsh.model.mesh.generate(GDIM)
         gmsh.model.mesh.setOrder(args.mesh_order)
+        """
+        gmsh.model.mesh.generate(GDIM)
         gmsh.model.mesh.optimize("Netgen")
         
         # write the output.
@@ -127,7 +131,7 @@ def main(args):
     # write mesh as XDMF file.
     if COMM.rank == MODELRANK:
         msh = meshio.read(f"{args.mesh_file}.msh")
-        el_mesh = create_mesh(msh, "quad", prune_z=True)
+        el_mesh = create_mesh(msh, "triangle", prune_z=True)
         meshio.write(f"{args.mesh_file}.xdmf", el_mesh)
         
         # write the facets.
@@ -139,8 +143,8 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate mesh for 2D DFG')
     parser.add_argument('--mesh_file', type=str, help='mesh file name')
-    parser.add_argument('--mesh_order', type=int, help='mesh order (default is 2)', default=1)
-    parser.add_argument('--mesh_algorithm', type=int, help='meshing algorithm (default is 6)', default=8)
+    # parser.add_argument('--mesh_order', type=int, help='mesh order (default is 2)', default=1)
+    # parser.add_argument('--mesh_algorithm', type=int, help='meshing algorithm (default is 2)', default=2)
     args = parser.parse_args()
 
     # call main script.
