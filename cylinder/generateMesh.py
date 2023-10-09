@@ -22,9 +22,9 @@ def gmsh2meshio(mesh, cell_type: str, prune_z=False):
     return out_mesh
 
 
-def create_mesh(mesh, cell_type, prune_z=False):
+def create_mesh(mesh, cell_type, prune_z=False, name_to_read="gmsh:geometrical"):
     cells = mesh.get_cells_type(cell_type)
-    cell_data = mesh.get_cell_data("gmsh:geometrical", cell_type)
+    cell_data = mesh.get_cell_data(name_to_read, cell_type)
     points = mesh.points[:,:2] if prune_z else mesh.points
     out_mesh = meshio.Mesh(points=points, cells={cell_type: cells}, cell_data={"name_to_read":[cell_data]})
     return out_mesh
@@ -135,7 +135,7 @@ def main(args):
         meshio.write(f"{args.mesh_file}.xdmf", el_mesh)
         
         # write the facets.
-        line_mesh = create_mesh(msh, "line")
+        line_mesh = create_mesh(msh, "line", prune_z=True, name_to_read="gmsh:physical")
         meshio.write(f"{args.mesh_file}_facets.xdmf", line_mesh)
         
 
