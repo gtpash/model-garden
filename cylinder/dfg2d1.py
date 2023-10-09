@@ -68,13 +68,26 @@ def getBCs(W, bndrys, MARKERS, COMM):
     return [bc_cylinder, bc_walls, bc_in]
 
 
-def solveSteadyNS(W, bcs, COMM, Re=20.):
-    NOSLIP = (0.0, 0.0)
-    
+def solveSteadyNS(W, bcs, COMM, nu=0.001):
     # define variational forms.
     v, q = dl.TestFunctions(W)
     
+    w = dl.Function(W)
+    u, p = dl.split(w)
+    
+    # define the residual variational form.
+    F = dl.Constant(nu)*dl.inner(dl.grad(u), dl.grad(v))*dl.dx \
+        + dl.dot(dl.dot(dl.grad(u), u), v)*dl.dx \
+        - p*dl.div(v)*dl.dx - q*dl.div(u)*dl.dx
+    
+    # solve the problem.
+    dl.solve(F == 0, w, bcs, solver_parameters={"newton_solver": {'linear_solver': 'mumps', "absolute_tolerance": 1e-7, "relative_tolerance": 1e-6}})
+    
     return w
+
+
+def computeQoIs(w, ds_cylinder):
+    return NotImplementedError
 
 
 def main(args):
@@ -87,7 +100,7 @@ def main(args):
     MARKERS = buildMarkerDict()
     
     # problem specific constants.
-    REYNOLDS = 20.0
+    kinematicViscosity = 0.001
     
     # read mesh, boundaries.
     mesh, bndrys = loadMesh(args, COMM)
@@ -99,7 +112,7 @@ def main(args):
     bcs = getBCs(W, bndrys, MARKERS, COMM)
     
     # solve variational problem.
-    w = solveSteadyNS(W, bcs, COMM, Re=REYNOLDS)
+    w = solveSteadyNS(W, bcs, COMM, nu=kinematicViscosity)
     
     
        
