@@ -1,11 +1,6 @@
-import os
 import argparse
-import numpy as np
-
 import mpi4py.MPI as MPI
-import fenics as fe
 import dolfin as dl
-import ufl
 
 
 def buildMarkerDict():
@@ -54,9 +49,8 @@ def buildSpaces(mesh, bndrys, MARKERS):
     return W, ds_cylinder
 
 
-def getBCs(W, bndrys, MARKERS, COMM):
-    UMAX = 0.3
-    Uin = dl.Expression(("4.0*UMAX*x[1]*(0.41 - x[1])/(0.41*0.41)", "0.0"), degree=2, UMAX=UMAX, mpi_comm=COMM)
+def getBCs(W, bndrys, MARKERS, COMM, U0=0.3):
+    Uin = dl.Expression(("4.0*UMAX*x[1]*(0.41 - x[1])/(0.41*0.41)", "0.0"), degree=2, UMAX=U0, mpi_comm=COMM)
     
     NOSLIP = (0.0, 0.0)
     
@@ -68,7 +62,7 @@ def getBCs(W, bndrys, MARKERS, COMM):
     return [bc_cylinder, bc_walls, bc_in]
 
 
-def solveSteadyNS(W, bcs, COMM, nu=0.001):
+def solveSteadyNS(W, nu, bcs, COMM):
     # define variational forms.
     v, q = dl.TestFunctions(W)
     
@@ -86,8 +80,38 @@ def solveSteadyNS(W, bcs, COMM, nu=0.001):
     return w
 
 
-def computeQoIs(w, ds_cylinder):
-    return NotImplementedError
+def computeQoIs(w, nu:float, ds_cylinder, COMM, U0=0.3, L=0.1):
+    """Compute the quantities of interest for the DFG benchmark.
+
+    Args:
+        w (dl.Vector (mixed element)): Mixed element vector containing solution.
+        nu (float): kinematic viscosity.
+        ds_cylinder: dolfin measure for the cylinder surface.
+        COMM: MPI communicator.
+        U0 (float, optional): Free stream velocity. Defaults to 0.3.
+        L (float, optional): Characteristic channel length. Defaults to 0.1.
+
+    Returns:
+        _type_: _description_
+    """
+    u, p = w.split()
+    
+    # report drag and lift.
+    n = dl.FacetNormal(w.function_space().mesh())
+    force = -p*n + nu*dl.dot(dl.grad(u), n)
+    F_D = dl.assemble(-force[0]*ds_cylinder)
+    F_L = dl.assemble(-force[1]*ds_cylinder)
+    
+    U_mean = 2/3*U0
+    C_D = 2/(U_mean**2*L)*F_D
+    C_L = 2/(U_mean**2*L)*F_L
+    
+    # report pressure differential.
+    a_1 = dl.Point(0.15, 0.2)
+    a_2 = dl.Point(0.25, 0.2)
+    p_diff = p(a_1) - p(a_2)
+    
+    return C_D, C_L, p_diff
 
 
 def main(args):
@@ -100,7 +124,12 @@ def main(args):
     MARKERS = buildMarkerDict()
     
     # problem specific constants.
-    kinematicViscosity = 0.001
+    nu = 0.001  # kinematic viscosity.
+    U0 = 0.3  # free stream velocity.
+    L = 0.1  # characteristic length.
+    if COMM.rank == MODELRANK:
+        print("Solving DFG 2D-1 Benchmark")
+        print(f"Reynolds number is:\t{(2/3)*U0*L/nu}")
     
     # read mesh, boundaries.
     mesh, bndrys = loadMesh(args, COMM)
@@ -109,13 +138,19 @@ def main(args):
     W, ds_cylinder = buildSpaces(mesh, bndrys, MARKERS)
     
     # prepare dirichlet boundary conditions.
-    bcs = getBCs(W, bndrys, MARKERS, COMM)
+    bcs = getBCs(W, bndrys, MARKERS, COMM, U0=U0)
     
     # solve variational problem.
-    w = solveSteadyNS(W, bcs, COMM, nu=kinematicViscosity)
+    w = solveSteadyNS(W, nu, bcs, COMM)
     
+    # compute QoIs.
+    C_D, C_L, p_diff = computeQoIs(w, nu, ds_cylinder, COMM, U0=U0, L=L)
+    if COMM.rank == MODELRANK:
+        print(f"Drag coefficient:\t{C_D}")
+        print(f"Lift coefficient:\t{C_L}")
+        print(f"Pressure difference:\t{p_diff}")
+        print("NOTE: These values may differ from the benchmark since we are using Taylor-Hood elements (P2-P1) instead of Q2-P1 elements.")
     
-       
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
