@@ -68,6 +68,123 @@ class PDTVDenoising:
     
     def wnorm(self, w):
         return dl.inner(w,w)
+    
+
+def PDNewton(pdProblem, m, w, parameters):
+    
+    termination_reasons = [
+                           "Maximum number of Iteration reached",      #0
+                           "Norm of the gradient less than tolerance", #1
+                           "Maximum number of backtracking reached",   #2
+                           "Norm of (g, m_hat) less than tolerance"       #3
+                           ]
+    
+    rtol          = parameters["rel_tolerance"]
+    atol          = parameters["abs_tolerance"]
+    gdm_tol       = parameters["gdm_tolerance"]
+    max_iter      = parameters["max_iter"]
+    c_armijo      = parameters["c_armijo"] 
+    max_backtrack = parameters["max_backtracking_iter"]
+    prt_level     = parameters["print_level"]
+    cg_coarse_tol = parameters["cg_coarse_tolerance"]
+        
+    Jn = dl.assemble( pdProblem.cost(m)   )
+    gn = dl.assemble( pdProblem.grad_m(m) )
+    g0_norm = gn.norm("l2")
+    gn_norm = g0_norm
+    tol = max(g0_norm*rtol, atol)
+    
+    m_hat = dl.Function(pdProblem.Vm)
+    w_hat = dl.Function(pdProblem.Vw)
+        
+    converged = False
+    reason = 0
+    total_cg_iter = 0
+        
+    if prt_level > 0:
+        print( "{0:>3} {1:>15} {2:>15} {3:>15} {4:>15} {5:>15} {6:>7}".format(
+                "It", "cost", "||g||", "(g,m_hat)", "alpha_m", "tol_cg", "cg_it") )
+        
+    for it in range(max_iter):
+        
+        # Compute m_hat
+        Hn = dl.assemble( pdProblem.Hessian(m,w) )
+        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
+        solver.set_operator(Hn)
+        solver.parameters["nonzero_initial_guess"] = False
+        cg_tol = min(cg_coarse_tol, math.sqrt( gn_norm/g0_norm) )
+        solver.parameters["relative_tolerance"] = cg_tol
+        lin_it = solver.solve(m_hat.vector(),-gn)   
+        total_cg_iter += lin_it
+        
+        # Compute w_hat
+        w_hat = pdProblem.compute_w_hat(m, w, m_hat)
+            
+        ### Line search for m
+        mhat_gn = m_hat.vector().inner(gn)
+            
+        if(-mhat_gn < gdm_tol):
+            converged=True
+            reason = 3
+            break
+        
+        alpha_m = 1.   
+        bk_converged = False 
+        for j in range(max_backtrack):
+            Jnext = dl.assemble( pdProblem.cost(m + dl.Constant(alpha_m)*m_hat) )
+            if Jnext < Jn + alpha_m*c_armijo*mhat_gn:
+                Jn = Jnext
+                bk_converged = True
+                break
+                
+            alpha_m = alpha_m/2.
+                
+        if not bk_converged:
+            reason = 2
+            break
+            
+        ### Line search for w
+        alpha_w = 1
+        bk_converged = False
+        for j in range(max_backtrack):
+            norm_w = dl.project(pdProblem.wnorm(w + dl.Constant(alpha_w)*w_hat), pdProblem.Vwnorm)
+            if norm_w.vector().norm("linf") <= 1:
+                bk_converged = True
+                break
+            alpha_w = alpha_w/2.
+        
+        
+        ### Update
+        m.vector().axpy(alpha_m, m_hat.vector())
+        w.vector().axpy(alpha_w, w_hat.vector())
+        
+        gn = dl.assemble( pdProblem.grad_m(m) )
+        gn_norm = gn.norm("l2")
+            
+        if prt_level > 0:
+            print( "{0:3d} {1:15e} {2:15e} {3:15e} {4:15e} {5:15e} {6:7d}".format(
+                    it, Jn, gn_norm, mhat_gn, alpha_m, cg_tol, lin_it) )
+                
+        if gn_norm < tol:
+            converged = True
+            reason = 1
+            break
+            
+    final_grad_norm = gn_norm
+        
+    if prt_level > -1:
+        print( termination_reasons[reason] )
+        if converged:
+            print( "Inexact Newton CG converged in ", it, \
+                "nonlinear iterations and ", total_cg_iter, "linear iterations." )
+        else:
+            print( "Inexact Newton CG did NOT converge after ", it, \
+                "nonlinear iterations and ", total_cg_iter, "linear iterations.")
+        print ("Final norm of the gradient", final_grad_norm)
+        print ("Value of the cost functional", Jn)
+            
+    return m, w
+    
 
 # Suppress FEniCS output
 logging.getLogger('FFC').setLevel(logging.WARNING)
