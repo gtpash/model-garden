@@ -198,10 +198,12 @@ h = Lx/float(data.shape[0])
 Ly = float(data.shape[1])*h
 
 mesh = dl.RectangleMesh(dl.Point(0.0, 0.0), dl.Point(Lx, Ly), data.shape[0], data.shape[1])
-Vh = dl.FunctionSpace(mesh, "Lagrange", 1)
+Vm = dl.FunctionSpace(mesh, "Lagrange",1)
+Vw = dl.VectorFunctionSpace(mesh, "DG", 0)
+Vwnorm = dl.FunctionSpace(mesh, "DG",0)
 true = hp.NumpyScalarExpression2D()
 true.setData(data, h, h)
-m_true = dl.interpolate(true, Vh)
+m_true = dl.interpolate(true, Vm)
 
 # Add noise to the image.
 np.random.seed(1)
@@ -209,7 +211,7 @@ noise_stddev = 0.3
 noise = noise_stddev*np.random.randn(*data.shape)
 noisy = hp.NumpyScalarExpression2D()
 noisy.setData(data + noise, h, h)
-d = dl.interpolate(noisy, Vh)
+d = dl.interpolate(noisy, Vm)
 
 # For sclaing.
 vmin = np.min(d.vector().get_local())
@@ -218,7 +220,30 @@ vmax = np.max(d.vector().get_local())
 plt.figure()
 dl.plot(d)
 plt.show()
+
+plt.figure()
 dl.plot(m_true)
 plt.show()
 
+alpha = 1e-3
+beta  = 1e-4
+pdProblem = PDTVDenoising(Vm, Vw, Vwnorm, d, alpha, beta)
 
+parameters = {}
+parameters["rel_tolerance"]         = 1e-6
+parameters["abs_tolerance"]         = 1e-9
+parameters["gdm_tolerance"]         = 1e-18
+parameters["max_iter"]              = 100
+parameters["c_armijo"]              = 1e-5
+parameters["max_backtracking_iter"] = 10
+parameters["print_level"]           = 1
+parameters["cg_coarse_tolerance"]   = 0.5
+
+m0 = dl.Function(Vm)
+w0 = dl.Function(Vw)
+
+m, w = PDNewton(pdProblem, m0, w0, parameters)
+
+plt.figure()
+dl.plot(m, title=f"alpha = {alpha:1.2e}")
+plt.show()
