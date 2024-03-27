@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 import sys
 import os
-sys.path.append( os.environ.get('HIPPYLIB_BASE_DIR') )
+sys.path.append( os.environ.get('HIPPYLIB_DEV_PATH') )
 import hippylib as hp
 
 import logging
@@ -14,8 +14,7 @@ logging.getLogger('FFC').setLevel(logging.WARNING)
 logging.getLogger('UFL').setLevel(logging.WARNING)
 dl.set_log_active(False)
 
-np.random.seed(seed=1)
-
+from utils import generateNoisyPointwiseObservations
 
 ## boundaries for the unit square
 def x_boundary(x, on_boundary):
@@ -31,6 +30,7 @@ def u0_boundary(x, on_boundary):
 NX = 64
 NY = 64
 DIM = 2
+NOISE_LEVEL = 0.02
 SEP = "\n"+"#"*80+"\n"
 
 ## set up the mesh, mpi communicator, and function spaces
@@ -63,6 +63,26 @@ def pde_varf(u,m,p):
 pde = hp.PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
 
 ## set up the true parameter
-mtrue_exp = dl.Expression('1.0 + 7.0*(x[0]<=0.8)*(x[0]>=0.2)*(x[1]<=0.8)*(x[1]>=0.2)')
+mtrue_exp = dl.Expression('1.0 + 7.0*(x[0]<=0.8)*(x[0]>=0.2)*(x[1]<=0.8)*(x[1]>=0.2)', degree=1)
 mtrue = dl.interpolate(mtrue_exp, Vh1)
 
+## set up observation operator for the top right corner
+xx = np.linspace(0.5, 1.0, 25, endpoint=False)
+xv, yv = np.meshgrid(xx, xx)
+targets = np.vstack([xv.ravel(), yv.ravel()]).T
+
+if rank == 0:
+    print(f"Number of observation points: {targets.shape[0]}")
+
+## define observation operator
+B = hp.assemblePointwiseObservation(Vh[hp.STATE], targets)
+
+## generate synthetic observations
+data, noise_std_dev = generateNoisyPointwiseObservations(pde, B, mtrue.vector(), NOISE_LEVEL)
+breakpoint()
+
+misfit = hp.DiscreteStateObservation(B, data, noise_std_dev**2)
+
+model = hp.Model(pde, prior, misfit)
+
+breakpoint()
