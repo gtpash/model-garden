@@ -47,7 +47,8 @@ def generateNoisyPointwiseObservations(pde:hp.PDEProblem, B:hp.PointwiseStateObs
     MAX = data.norm("linf")
     noise_std_dev = noise_level * MAX
     
-    noise = dl.Vector(data).zero()
+    noise = dl.Vector(data)
+    noise.zero()
     hp.parRandom.normal(noise_std_dev, noise)
     
     # TODO: check this
