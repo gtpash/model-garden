@@ -27,11 +27,13 @@ def u0_boundary(x, on_boundary):
     return on_boundary
 
 ## constants
+SEP = "\n"+"#"*80+"\n"
 NX = 64
 NY = 64
 DIM = 2
 NOISE_LEVEL = 0.02
-SEP = "\n"+"#"*80+"\n"
+ALPHA = 1e-3
+BETA = 1e-4
 
 ## set up the mesh, mpi communicator, and function spaces
 mesh = dl.UnitSquareMesh(NX, NY)
@@ -83,6 +85,31 @@ breakpoint()
 
 misfit = hp.DiscreteStateObservation(B, data, noise_std_dev**2)
 
-model = hp.Model(pde, prior, misfit)
+# smooth portion of the prior
+# same as: https://github.com/hippylib/hippylib/blob/master/applications/poisson/model_subsurf.py
+
+# anisotropic diffusion tensor
+theta0 = 2.
+theta1 = .5
+alpha  = math.pi/4
+anis_diff = dl.CompiledExpression(hp.ExpressionModule.AnisTensor2D(), degree = 1)
+anis_diff.set(theta0, theta1, alpha)
+
+gamma = .1
+delta = .5
+prior = hp.BiLaplacianPrior(Vh[hp.PARAMETER], gamma, delta, anis_diff, robin_bc=True)
+
+# nonsmooth portion of the prior
+Vhm = Vh1
+Vhw = dl.VectorFunctionSpace(mesh, 'DG', 0)
+Vhwnorm = dl.FunctionSpace(mesh, 'DG', 0)
+nsprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA)
+
+# set up the model describing the inverse problem
+model = hp.ModelNS(pde, misfit, prior, nsprior)
+
+m = prior.mean.copy()
+solver = hp.ReducedSpacePDNewtonCG(model)
+x = solver.solve([None, m, None, None])
 
 breakpoint()
