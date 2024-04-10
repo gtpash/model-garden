@@ -48,16 +48,16 @@ class parameter2NoisyObservations:
         
         # apply observation operator, determine noise
         if self.B is not None:
-            self.data.axpy(1., self.B*x[hp.STATE])
+            self.noisy_data.axpy(1., self.B*x[hp.STATE])
         else:
-            self.data.axpy(1., x[hp.STATE])
-        MAX = self.data.norm("linf")
+            self.noisy_data.axpy(1., x[hp.STATE])
+        MAX = self.noisy_data.norm("linf")
         self.noise_std_dev = self.noise_level * MAX
         
         # generate noise
-        noise = dl.Vector(self.data)
+        noise = dl.Vector(self.noisy_data)
         noise.zero()
         hp.parRandom.normal(self.noise_std_dev, noise)
         
         # add noise to measurements
-        self.data.axpy(1., noise)
+        self.noisy_data.axpy(1., noise)
