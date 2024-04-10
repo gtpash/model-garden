@@ -30,11 +30,7 @@ def u0_boundary(x, on_boundary):
 
 ## constants
 SEP = "\n"+"#"*80+"\n"
-NX = 64
-NY = 64
-DIM = 2
-NOISE_LEVEL = 0.02
-ALPHA = 1e-2
+ALPHA = 1e-3
 BETA = 1e-4
 
 ## set up the mesh, mpi communicator, and function spaces
@@ -106,8 +102,6 @@ misfit.d.axpy(1., d.vector())
 misfit.noise_variance = noise_stddev**2
 
 # set up the prior
-ALPHA = 1e-3
-BETA = 1e-4
 tvprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA)
 
 # set up the model describing the inverse problem
