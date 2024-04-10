@@ -14,7 +14,7 @@ logging.getLogger('FFC').setLevel(logging.WARNING)
 logging.getLogger('UFL').setLevel(logging.WARNING)
 dl.set_log_active(False)
 
-from utils import generateNoisyPointwiseObservations
+from utils import parameter2NoisyObservations
 
 ## boundaries for the unit square
 def x_boundary(x, on_boundary):
@@ -32,7 +32,7 @@ NX = 64
 NY = 64
 DIM = 2
 NOISE_LEVEL = 0.02
-ALPHA = 1e-3
+ALPHA = 1e-2
 BETA = 1e-4
 
 ## set up the mesh, mpi communicator, and function spaces
@@ -78,12 +78,14 @@ if rank == 0:
 
 ## define observation operator
 B = hp.assemblePointwiseObservation(Vh[hp.STATE], targets)
+p2o = parameter2NoisyObservations(pde, mtrue.vector(), NOISE_LEVEL)
+p2o.generateNoisyObservations()
 
 ## generate synthetic observations
-data, noise_std_dev = generateNoisyPointwiseObservations(pde, B, mtrue.vector(), NOISE_LEVEL)
-breakpoint()
-
-misfit = hp.DiscreteStateObservation(B, data, noise_std_dev**2)
+# misfit = hp.DiscreteStateObservation(B, data, noise_std_dev**2)
+misfit = hp.ContinuousStateObservation(Vh=Vh[hp.STATE], dX=ufl.dx, bcs=[bc])
+misfit.d.axpy(1., p2o.noisy_data)
+misfit.noise_variance = p2o.noise_std_dev**2
 
 # smooth portion of the prior
 # same as: https://github.com/hippylib/hippylib/blob/master/applications/poisson/model_subsurf.py
@@ -106,10 +108,20 @@ Vhwnorm = dl.FunctionSpace(mesh, 'DG', 0)
 nsprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA)
 
 # set up the model describing the inverse problem
-model = hp.ModelNS(pde, misfit, prior, nsprior)
+TVonly = [True, False, True]
+model = hp.ModelNS(pde, misfit, prior, nsprior, which=TVonly)
+# model = hp.ModelNS(pde, misfit, prior, nsprior)
 
 m = prior.mean.copy()
+m.zero()
 solver = hp.ReducedSpacePDNewtonCG(model)
+# x = solver.solve([None, m, None, nsprior.compute_w(m)])
 x = solver.solve([None, m, None, None])
+print("Solver convergence criterion")
+print(solver.termination_reasons[solver.reason])
+
+# todo: add visualization
+xfunname = ["state", "parameter", "adjoint"]
+xfun = [hp.vector2Function(x[i], Vh[i], name=xfunname[i]) for i in range(len(Vh))]
 
 breakpoint()
