@@ -23,34 +23,41 @@ def samplePrior(prior):
     prior.sample(noise, mtrue)
     return mtrue
 
-def generateNoisyPointwiseObservations(pde:hp.PDEProblem, B:hp.PointwiseStateObservation, m:dl.Vector, noise_level:float=0.02)->Tuple[dl.Vector, float]:
-    """Add noise to pointwise observations.
 
-    Args:
-        :code:`pde`: :code:`hIPPYlib` PDE problem.
-        :code:`B`: :code:`hIPPYlib` pointwise observation operator.
-        :code:`m`: :code:`dolfin` vector representing the parameter.
-        :code:`noise_level`: noise level.
-
-    Returns:
-        :code:`dl.Vector`: noisy pointwise observation.
-        :code:`float`: noise level.
-    """
-    # generate state, solve the forward problem
-    utrue = pde.generate_state()
-    x = [utrue, m, None]
-    pde.solveFwd(x[hp.STATE], x)
-    
-    # apply observation operator, determine noise
-    breakpoint()
-    data = B*x[hp.STATE]
-    MAX = data.norm("linf")
-    noise_std_dev = noise_level * MAX
-    
-    noise = dl.Vector(data)
-    noise.zero()
-    hp.parRandom.normal(noise_std_dev, noise)
-    
-    # TODO: check this
-    # add noise to measurements
-    return data.axpy(1., noise), noise_std_dev
+class parameter2NoisyObservations:
+    def __init__(self, pde:hp.PDEProblem, m:dl.Vector, noise_level:float=0.02, B:hp.PointwiseStateObservation=None):
+        self.pde = pde
+        self.m = m
+        self.noise_level = noise_level
+        self.B = B
+        
+        # set up vector for the data
+        self.true_data = self.pde.generate_state()
+        self.noisy_data = self.pde.generate_state()
+        
+        self.noise_std_dev = None
+        
+    def generateNoisyObservations(self):
+        # generate state, solve the forward problem
+        utrue = self.pde.generate_state()
+        x = [utrue, self.m, None]
+        self.pde.solveFwd(x[hp.STATE], x)
+        
+        # store the true data
+        self.true_data.axpy(1., x[hp.STATE])
+        
+        # apply observation operator, determine noise
+        if self.B is not None:
+            self.data.axpy(1., self.B*x[hp.STATE])
+        else:
+            self.data.axpy(1., x[hp.STATE])
+        MAX = self.data.norm("linf")
+        self.noise_std_dev = self.noise_level * MAX
+        
+        # generate noise
+        noise = dl.Vector(self.data)
+        noise.zero()
+        hp.parRandom.normal(self.noise_std_dev, noise)
+        
+        # add noise to measurements
+        self.data.axpy(1., noise)
