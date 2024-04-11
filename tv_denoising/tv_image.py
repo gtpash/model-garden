@@ -1,6 +1,6 @@
 import dolfin as dl
 import ufl
-import math
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io as sio
@@ -32,6 +32,7 @@ def u0_boundary(x, on_boundary):
 SEP = "\n"+"#"*80+"\n"
 ALPHA = 1e-3
 BETA = 1e-4
+LUMPING = False
 
 ## set up the mesh, mpi communicator, and function spaces
 img = sio.loadmat("circles.mat")["im"]
@@ -48,7 +49,7 @@ nproc = dl.MPI.size(mesh.mpi_comm())
 Vhm = dl.FunctionSpace(mesh, 'Lagrange', 1)
 Vhw = dl.VectorFunctionSpace(mesh, 'DG', 0)
 Vhwnorm = dl.FunctionSpace(mesh, 'DG', 0)
-nsprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA)
+nsprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA, peps=0.5*ALPHA)
 
 # set up the function spaces for the PDEProblem
 Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
@@ -64,9 +65,18 @@ bc = dl.DirichletBC(Vh[hp.STATE], zero, u0_boundary)  # homogeneous Dirichlet BC
 bc0 = bc  # same for the adjoint
 
 ## define the variational form
-def pde_varf(u,m,p):
+
+#todo: mass lumping for dx, scheme="diagonal"
+if LUMPING:
+    dx_lump = ufl.dx(scheme="vertex", metadata={"degree":1, "representation":"quadrature"})
+    def pde_varf(u,m,p):
     # the parameter is the state (residual form)
-    return u*p*ufl.dx - m*p*ufl.dx
+        return u*p*dx_lump - m*p*dx_lump
+else:
+    def pde_varf(u,m,p):
+    # the parameter is the state (residual form)
+        return u*p*ufl.dx - m*p*ufl.dx
+
     
 pde = hp.PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
 
@@ -99,7 +109,8 @@ plt.show()
 # set up the misfit
 misfit = hp.ContinuousStateObservation(Vh=Vh[hp.STATE], dX=ufl.dx, bcs=[bc])
 misfit.d.axpy(1., d.vector())
-misfit.noise_variance = noise_stddev**2
+# misfit.noise_variance = noise_stddev**2
+misfit.noise_variance = 1.  # image denoising, don't scale the misfit!
 
 # set up the prior
 tvprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA)
@@ -111,8 +122,14 @@ model = hp.ModelNS(pde, misfit, None, tvprior, which=TVonly)
 # set up the solver and solve
 m = dl.Function(Vhm)
 m.vector().zero()
-solver = hp.ReducedSpacePDNewtonCG(model)
+solver_params = hp.ReducedSpacePDNewtonCG_ParameterList()
+solver_params["max_iter"] = 100
+solver_params["cg_max_iter"] = 75
+solver = hp.ReducedSpacePDNewtonCG(model, parameters=solver_params)
+
+start = time.perf_counter()
 x = solver.solve([None, m.vector(), None, None])
+print(f"Nonlinear solve took:\t{(time.perf_counter()-start)/60:.2f} minutes")
 
 print("Solver convergence criterion")
 print(solver.termination_reasons[solver.reason])
@@ -121,4 +138,7 @@ print(solver.termination_reasons[solver.reason])
 xfunname = ["state", "parameter", "adjoint"]
 xfun = [hp.vector2Function(x[i], Vh[i], name=xfunname[i]) for i in range(len(Vh))]
 
-breakpoint()
+# show off your denoised image
+plt.plot()
+dl.plot(xfun[hp.PARAMETER])
+plt.show()
