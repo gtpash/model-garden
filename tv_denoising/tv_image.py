@@ -19,20 +19,16 @@ dl.set_log_active(False)
 from utils import parameter2NoisyObservations
 
 ## boundaries for the unit square
-def x_boundary(x, on_boundary):
-    return on_boundary and (x[0] < dl.DOLFIN_EPS or x[0] > 1.0 - dl.DOLFIN_EPS)
-
-def y_boundary(x, on_boundary):
-    return on_boundary and (x[1] < dl.DOLFIN_EPS or x[1] > 1.0 - dl.DOLFIN_EPS)
-
 def u0_boundary(x, on_boundary):
     return on_boundary
 
 ## constants
 SEP = "\n"+"#"*80+"\n"
-ALPHA = 1e-3
-BETA = 1e-4
+ALPHA = 1e-3  # weight for TV regularization
+BETA = 1e-4  # mollifier for TV regularization
 LUMPING = True
+# PEPS = 1.  # full mass matrix
+PEPS = 0.5*ALPHA  # mass matrix scaled with TV
 
 ## set up the mesh, mpi communicator, and function spaces
 img = sio.loadmat("circles.mat")["im"]
@@ -49,7 +45,7 @@ nproc = dl.MPI.size(mesh.mpi_comm())
 Vhm = dl.FunctionSpace(mesh, 'Lagrange', 1)
 Vhw = dl.VectorFunctionSpace(mesh, 'DG', 0)
 Vhwnorm = dl.FunctionSpace(mesh, 'DG', 0)
-nsprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA, peps=0.5*ALPHA)
+nsprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA, peps=PEPS)
 
 # set up the function spaces for the PDEProblem
 Vh2 = dl.FunctionSpace(mesh, 'Lagrange', 2)
@@ -104,11 +100,8 @@ plt.plot()
 dl.plot(m_true)
 plt.show()
 
-# set up the misfit
-misfit = hp.ContinuousStateObservation(Vh=Vh[hp.STATE], dX=ufl.dx, bcs=[bc])
-misfit.d.axpy(1., d.vector())
-# misfit.noise_variance = noise_stddev**2
-misfit.noise_variance = 1.  # image denoising, don't scale the misfit!
+# set up the misfit (noise variance set to 1, since we don't scale misfit for image denoising)
+misfit = hp.ContinuousStateObservation(Vh=Vh[hp.STATE], dX=ufl.dx, data=d.vector(), noise_variance=1., bcs=[bc])
 
 # set up the prior
 tvprior = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA)
