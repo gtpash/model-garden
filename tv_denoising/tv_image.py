@@ -32,7 +32,7 @@ def u0_boundary(x, on_boundary):
 SEP = "\n"+"#"*80+"\n"
 ALPHA = 1e-3
 BETA = 1e-4
-LUMPING = False
+LUMPING = True
 
 ## set up the mesh, mpi communicator, and function spaces
 img = sio.loadmat("circles.mat")["im"]
@@ -65,8 +65,6 @@ bc = dl.DirichletBC(Vh[hp.STATE], zero, u0_boundary)  # homogeneous Dirichlet BC
 bc0 = bc  # same for the adjoint
 
 ## define the variational form
-
-#todo: mass lumping for dx, scheme="diagonal"
 if LUMPING:
     dx_lump = ufl.dx(scheme="vertex", metadata={"degree":1, "representation":"quadrature"})
     def pde_varf(u,m,p):
@@ -134,7 +132,6 @@ print(f"Nonlinear solve took:\t{(time.perf_counter()-start)/60:.2f} minutes")
 print("Solver convergence criterion")
 print(solver.termination_reasons[solver.reason])
 
-# todo: add visualization
 xfunname = ["state", "parameter", "adjoint"]
 xfun = [hp.vector2Function(x[i], Vh[i], name=xfunname[i]) for i in range(len(Vh))]
 
