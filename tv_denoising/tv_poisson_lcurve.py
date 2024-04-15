@@ -11,7 +11,7 @@ import hippylib as hp
 from poisson import PoissonBox
 
 ## constants, initializations
-DO_LCURVE = False
+DO_LCURVE = True
 VERBOSE = True
 TVONLY = [True, False, True]
 N = 64  # assumed to be the same in x, y
@@ -71,10 +71,10 @@ if DO_LCURVE:
             print(f"Number of Newton iterations:\t{solver.it}")
             print(f"Total number of CG iterations:\t{solver.total_cg_iter}")
         
-        misfits[i], _, regs[i], _ = model.cost(x)
+        _, _, regs[i], misfits[i] = model.cost(x)
         
     fig, ax = plt.subplots()
-    plt.loglog(misfits, regs / ALPHAS, 'x')
+    plt.loglog(misfits, regs / ALPHAS, 'x') #todo, might need to fix this
     plt.xlabel("Data Fidelity")
     plt.ylabel("TV Regularization")
     plt.title("L-Curve for Poisson TV Denoising")
