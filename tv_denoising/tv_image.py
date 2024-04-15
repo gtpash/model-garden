@@ -16,8 +16,6 @@ logging.getLogger('FFC').setLevel(logging.WARNING)
 logging.getLogger('UFL').setLevel(logging.WARNING)
 dl.set_log_active(False)
 
-from utils import parameter2NoisyObservations
-
 ## boundaries for the unit square
 def u0_boundary(x, on_boundary):
     return on_boundary
@@ -53,8 +51,8 @@ Vh = [Vhm, Vhm, Vhm]
 
 ndofs = [Vh[hp.STATE].dim(), Vh[hp.PARAMETER].dim(), Vh[hp.ADJOINT].dim()]
 if rank == 0:
-    print(SEP, "Set up the mesh and finite element spaces", SEP)
-    print(f"Number of dofs: STATE={ndofs[0]}, PARAMETER={ndofs[1]}, ADJOINT={ndofs[2]}")
+    print(SEP, "Set up the mesh and finite element spaces", SEP, flush=True)
+    print(f"Number of dofs: STATE={ndofs[0]}, PARAMETER={ndofs[1]}, ADJOINT={ndofs[2]}", flush=True)
 
 zero = dl.Constant(0.0)
 bc = dl.DirichletBC(Vh[hp.STATE], zero, u0_boundary)  # homogeneous Dirichlet BC
@@ -70,7 +68,6 @@ else:
     def pde_varf(u,m,p):
     # the parameter is the state (residual form)
         return u*p*ufl.dx - m*p*ufl.dx
-
     
 pde = hp.PDEVariationalProblem(Vh, pde_varf, bc, bc0, is_fwd_linear=True)
 
@@ -120,9 +117,9 @@ solver = hp.ReducedSpacePDNewtonCG(model, parameters=solver_params)
 
 start = time.perf_counter()
 x = solver.solve([None, m.vector(), None, None])
-print(f"Nonlinear solve took:\t{(time.perf_counter()-start)/60:.2f} minutes")
+print(f"Nonlinear solve took:\t{(time.perf_counter()-start)/60:.2f} minutes", flush=True)
 
-print("Solver convergence criterion")
+print("Solver convergence criterion", flush=True)
 print(solver.termination_reasons[solver.reason])
 
 xfunname = ["state", "parameter", "adjoint"]
