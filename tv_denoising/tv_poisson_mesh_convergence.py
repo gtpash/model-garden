@@ -71,12 +71,10 @@ for i, N in enumerate(DIMS):
     newton_iters[i] = solver.it
     cg_iters[i] = solver.total_cg_iter
 
-breakpoint()
 plt.figure()
-plt.plot(DIMS, newton_iters, 'bx-', label="Newton Iterations")
-plt.plot(DIMS, cg_iters, 'rx-', label="CG Iterations")
+plt.plot(DIMS, newton_iters, 'kx-', label="Newton Iterations")
+plt.plot(DIMS, cg_iters, 'ko-', label="CG Iterations")
 plt.xlabel("Mesh Size")
 plt.ylabel("Iterations")
-plt.title("Mesh Independence of Primal-Dual Total Variation")
 plt.legend()
 plt.savefig("figs/mesh_convergence.png")
