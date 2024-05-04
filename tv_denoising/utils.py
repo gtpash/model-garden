@@ -1,10 +1,15 @@
-from typing import Tuple
 import sys
 import os
 
 import dolfin as dl
 sys.path.append( os.environ.get('HIPPYLIB_BASE_DIR') )
 import hippylib as hp
+
+def rprint(comm, *args, **kwargs):
+    """Print only on rank 0."""
+    if comm.rank == 0:
+        print(*args, **kwargs)
+
 
 def samplePrior(prior):
     """Wrapper to sample from a :code:`hIPPYlib` prior.
