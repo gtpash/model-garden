@@ -38,7 +38,6 @@ class parameter2NoisyObservations:
         
         # set up vector for the data
         self.true_data = self.pde.generate_state()
-        self.noisy_data = self.pde.generate_state()
         
         self.noise_std_dev = None
         
@@ -53,9 +52,13 @@ class parameter2NoisyObservations:
         
         # apply observation operator, determine noise
         if self.B is not None:
+            self.noisy_data = dl.Vector(self.B.mpi_comm())  # shape vector to match B
+            self.B.init_vector(self.noisy_data, 0)          # initialize vector
             self.noisy_data.axpy(1., self.B*x[hp.STATE])
         else:
+            self.noisy_data = self.pde.generate_state()
             self.noisy_data.axpy(1., x[hp.STATE])
+        
         MAX = self.noisy_data.norm("linf")
         self.noise_std_dev = self.noise_level * MAX
         
