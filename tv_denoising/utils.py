@@ -1,5 +1,6 @@
 import sys
 import os
+from typing import List
 
 import numpy as np
 import dolfin as dl
@@ -74,7 +75,16 @@ class parameter2NoisyObservations:
         self.noisy_data.axpy(1., noise)
 
 
-def interpolatePointwiseObsOp(Vh, B):
+def interpolatePointwiseObsOp(Vh:dl.FunctionSpace, B:hp.PointwiseStateObservation)->List[dl.Function]:
+    """Interpolate a PointwiseObservationOperator onto function space.
+
+    Args:
+        Vh (dl.FunctionSpace): Function space.
+        B (hp.PointwiseStateObservation): Pointwise observation operator.
+
+    Returns:
+        (list): List of interpolated functions.
+    """
     mesh = Vh.mesh()
     if mesh.geometry().dim() == 1:
         xyz_fun = [dl.Expression("x[0]", degree=1)]
@@ -86,7 +96,7 @@ def interpolatePointwiseObsOp(Vh, B):
     return [B*dl.interpolate(fun, Vh).vector() for fun in xyz_fun]
 
 
-def plotPointwiseObs(Vhs:dl.FunctionSpace, m:dl.Vector, B:hp.DiscreteStateObservation, data:dl.Vector, meshfpath:str):
+def plotPointwiseObs(Vhs:dl.FunctionSpace, m:dl.Vector, B:hp.DiscreteStateObservation, data:dl.Vector, meshfpath:str, fpath:str):
     # todo: clean up
     pv.start_xvfb()
     
@@ -115,4 +125,28 @@ def plotPointwiseObs(Vhs:dl.FunctionSpace, m:dl.Vector, B:hp.DiscreteStateObserv
     p.add_mesh(xyzPoints, color="white", point_size=3, render_points_as_spheres=False)
     
     p.view_xy()
-    p.screenshot('param.png')
+    p.screenshot(fpath)
+
+
+def plotScalarFunction(Vh:dl.FunctionSpace, grid:pv.Grid, u:dl.Function, name:str="state", **kwargs)->pv.Plotter:
+    """Plot a scalar function.
+
+    Args:
+        Vh (dl.FunctionSpace): Function space for variable.
+        grid (pv.Grid): PyVista grid.
+        u (dl.Function): Function to be plotted.
+
+    Returns:
+        (pv.Plotter): PyVista Plotter object.
+    """
+    # Set up the plotter.
+    p = pv.Plotter(off_screen=True, lighting=None)
+    p.clear()
+    
+    grid[name] = u.compute_vertex_values()
+    
+    p.add_mesh(grid, style="wireframe")
+    p.add_mesh(grid, scalars=name, **kwargs)
+    p.view_xy()
+
+    return p
