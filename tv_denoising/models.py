@@ -70,3 +70,25 @@ class PoissonBox():
                                        data=self.p2o.noisy_data,
                                        noise_variance=self.p2o.noise_std_dev**2,
                                        bcs=self.pde.bc)
+
+
+class splitCircle(dl.UserExpression):
+    """Expression implementing a circle with different values on the left and right sides.
+    """
+    def __init__(self, cx, cy, r, vl, vr, vo, **kwargs):
+        super().__init__(**kwargs)
+        self.r = r
+        self.cx = cx  # center x-coordinate
+        self.cy = cy  # center y-coordinate
+        self.vl = vl  # left value
+        self.vr = vr  # right value
+        self.vo = vo  # outside value
+        
+    def eval_cell(self, values, x, cell):        
+        if (pow(x[0]-self.cx,2)+pow(x[1]-self.cy,2) < pow(self.r,2)):
+            if (x[0] < self.cx):
+                values[0] = self.vl
+            else:
+                values[0] = self.vr
+        else:
+            values[0] = self.vo
