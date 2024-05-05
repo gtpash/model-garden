@@ -8,7 +8,7 @@ import os
 sys.path.append( os.environ.get('HIPPYLIB_DEV_PATH') )
 import hippylib as hp
 
-from tv_denoising.models import PoissonBox
+from models import PoissonBox
 
 ## constants, initializations
 VERBOSE = True
