@@ -8,7 +8,7 @@ import os
 sys.path.append( os.environ.get('HIPPYLIB_DEV_PATH') )
 import hippylib as hp
 
-from poisson import PoissonBox
+from tv_denoising.models import PoissonBox
 
 ## constants, initializations
 DO_LCURVE = True

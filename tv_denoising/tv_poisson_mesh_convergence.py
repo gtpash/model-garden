@@ -8,7 +8,7 @@ import os
 sys.path.append( os.environ.get('HIPPYLIB_DEV_PATH') )
 import hippylib as hp
 
-from poisson import PoissonBox
+from tv_denoising.models import PoissonBox
 
 ## constants, initializations
 VERBOSE = True
@@ -78,3 +78,12 @@ plt.xlabel("Mesh Size")
 plt.ylabel("Iterations")
 plt.legend()
 plt.savefig("figs/mesh_convergence.png")
+plt.close()
+
+r = dl.Function(poisson.pde.Vh[hp.PARAMETER])
+r.vector().axpy(1., x[hp.PARAMETER])
+fig = plt.figure()
+dl.plot(r)
+# plt.colorbar(fig)
+plt.savefig("figs/reconstruction.png")
+plt.close()
