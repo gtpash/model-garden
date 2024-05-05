@@ -1,7 +1,10 @@
 import sys
 import os
 
+import numpy as np
 import dolfin as dl
+import pyvista as pv
+
 sys.path.append( os.environ.get('HIPPYLIB_BASE_DIR') )
 import hippylib as hp
 
@@ -69,3 +72,47 @@ class parameter2NoisyObservations:
         
         # add noise to measurements
         self.noisy_data.axpy(1., noise)
+
+
+def interpolatePointwiseObsOp(Vh, B):
+    mesh = Vh.mesh()
+    if mesh.geometry().dim() == 1:
+        xyz_fun = [dl.Expression("x[0]", degree=1)]
+    elif mesh.geometry().dim() == 2:
+        xyz_fun = [dl.Expression("x[0]", degree=1), dl.Expression("x[1]", degree=1)]
+    else:
+        xyz_fun = [dl.Expression("x[0]", degree=1), dl.Expression("x[1]", degree=1), dl.Expression("x[2]", degree=1)]
+
+    return [B*dl.interpolate(fun, Vh).vector() for fun in xyz_fun]
+
+
+def plotPointwiseObs(Vhs:dl.FunctionSpace, m:dl.Vector, B:hp.DiscreteStateObservation, data:dl.Vector, meshfpath:str):
+    # todo: clean up
+    pv.start_xvfb()
+    
+    # read in the mesh
+    meshReader = pv.get_reader(meshfpath)
+    grid = meshReader.read()
+    
+    # interpolate the pointwise observation operator
+    xyz = interpolatePointwiseObsOp(Vhs[hp.STATE], B)
+    xyz_array = np.stack([xi.get_local() for xi in xyz])
+    xyz_array = xyz_array.T  # shape (N, dim)
+    
+    # pad with zeros for the third dimension (if necessary)
+    if xyz_array.shape[1] == 2:
+        xyz_array = np.hstack([xyz_array, np.zeros((xyz_array.shape[0], 1))])
+        
+    xyzPoints = pv.PolyData(xyz_array)
+    
+    # interpolate the parameter, add to the grid
+    grid["parameter"] = m.compute_vertex_values()
+    
+    # set up the plotter
+    p = pv.Plotter(off_screen=True, lighting=None)
+    p.add_mesh(grid, style="wireframe")
+    p.add_mesh(grid, scalars="parameter", cmap="plasma")
+    p.add_mesh(xyzPoints, color="white", point_size=3, render_points_as_spheres=False)
+    
+    p.view_xy()
+    p.screenshot('param.png')
