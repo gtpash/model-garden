@@ -34,7 +34,8 @@ class PoissonBox():
     def setupFunctionSpaces(self):
         Vh2 = dl.FunctionSpace(self.mesh, 'Lagrange', 2)
         Vh1 = dl.FunctionSpace(self.mesh, 'Lagrange', 1)
-        Vh = [Vh2, Vh1, Vh2]
+        # Vh = [Vh2, Vh1, Vh2]
+        Vh = [Vh1, Vh1, Vh1]
         self.Vh = Vh
         ndofs = [Vh[hp.STATE].dim(), Vh[hp.PARAMETER].dim(), Vh[hp.ADJOINT].dim()]
         if self.rank == 0:
