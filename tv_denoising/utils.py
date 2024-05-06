@@ -96,7 +96,7 @@ def interpolatePointwiseObsOp(Vh:dl.FunctionSpace, B:hp.PointwiseStateObservatio
     return [B*dl.interpolate(fun, Vh).vector() for fun in xyz_fun]
 
 
-def plotPointwiseObs(Vhs:dl.FunctionSpace, m:dl.Vector, B:hp.DiscreteStateObservation, data:dl.Vector, meshfpath:str, fpath:str):
+def plotPointwiseObs(Vh:dl.FunctionSpace, x:dl.Vector, B:hp.DiscreteStateObservation, meshfpath:str, fpath:str, name:str="state", clim=None):
     # todo: clean up
     pv.start_xvfb()
     
@@ -105,7 +105,7 @@ def plotPointwiseObs(Vhs:dl.FunctionSpace, m:dl.Vector, B:hp.DiscreteStateObserv
     grid = meshReader.read()
     
     # interpolate the pointwise observation operator
-    xyz = interpolatePointwiseObsOp(Vhs[hp.STATE], B)
+    xyz = interpolatePointwiseObsOp(Vh[hp.STATE], B)
     xyz_array = np.stack([xi.get_local() for xi in xyz])
     xyz_array = xyz_array.T  # shape (N, dim)
     
@@ -116,12 +116,16 @@ def plotPointwiseObs(Vhs:dl.FunctionSpace, m:dl.Vector, B:hp.DiscreteStateObserv
     xyzPoints = pv.PolyData(xyz_array)
     
     # interpolate the parameter, add to the grid
-    grid["parameter"] = m.compute_vertex_values()
+    grid[name] = x.compute_vertex_values()
     
     # set up the plotter
     p = pv.Plotter(off_screen=True, lighting=None)
     p.add_mesh(grid, style="wireframe")
-    p.add_mesh(grid, scalars="parameter", cmap="plasma")
+    p.add_mesh(grid, scalars=name)
+    
+    if clim is not None:
+        p.update_scalar_bar_range(clim)  # manually adjust the colorbar range
+    
     p.add_mesh(xyzPoints, color="white", point_size=3, render_points_as_spheres=False)
     
     p.view_xy()
