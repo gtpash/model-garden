@@ -117,7 +117,8 @@ import matplotlib.pyplot as plt
 uh = dl.Function(V)
 uh.vector().axpy(1., dl.PETScVector(ts.getSolution()))
 
-residual = dl.assemble( (u_ex - uh)**2 * dl.dx )
+residual = uh - u_ex
+residual = dl.assemble( dl.inner(residual, residual) * dl.dx )
 
 error_L2 = np.sqrt(COMM.allreduce(residual, op=MPI.SUM))  # todo: is this mass weighted L^2(\Omega) or just \ell^2 ?
 if RANK == 0:
