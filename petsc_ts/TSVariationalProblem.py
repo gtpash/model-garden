@@ -51,10 +51,10 @@ class TS_VariationalProblem(object):
                 bc.apply(x)
                 bc.apply(self.u.vector())
             else:  # assume it was a function with the standard caller signature
-                bcfun = bc(t, self.u, self.udot)
-                bc.apply(Fvec)
-                bc.apply(x)
-                bc.apply(self.u.vector())
+                bc_handler = bc(t, self.u, self.udot)
+                bc_handler.apply(Fvec)
+                bc_handler.apply(x)
+                bc_handler.apply(self.u.vector())
             
     
     def evalJacobian(self, ts, t, x, xdot, shift, J, P):
@@ -78,8 +78,8 @@ class TS_VariationalProblem(object):
                 bc.apply(Jvec)
                 # bc.apply(P)  # todo: handle preconditioner
             else:  # assume it was a function with the standard caller signature
-                bcfun = bc(t, self.u, self.udot)
-                bc.apply(Jvec)
+                bc_handler = bc(t, self.u, self.udot)
+                bc_handler.apply(Jvec)
                 # bc.apply(P)  # todo: handle preconditioner            
 
 
