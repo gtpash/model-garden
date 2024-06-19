@@ -5,11 +5,14 @@ class TS_VariationalProblem(object):
     def __init__(self, Fvarf:ufl.Form, udot:dl.Function, u:dl.Function, bcs:list, G:ufl.Form=None):
         self.u = u  # initial iterate, state
         self.V = self.u.function_space()
-        du = dl.TrialFunction(self.V)
+        self.du = dl.TrialFunction(self.V)
         
         self.udot = udot  # initial iterate, time derivative
         self.Vdot = self.udot.function_space()
-        dudot = dl.TrialFunction(self.Vdot)
+        self.dudot = dl.TrialFunction(self.Vdot)
+        
+        # Standard __call__ signature should take (t, u, udot)
+        # according to manual: https://petsc.org/main/manual/ts/
         
         self.Fvarf = Fvarf  # residual form
 
@@ -18,7 +21,7 @@ class TS_VariationalProblem(object):
         self.shift = None
         self.J_form = None
         
-        # todo: handle this one later
+        # todo: handle the stationary term later
         # Derive the Jacobian for the G residual
         self.dGdu_form = dl.derivative(G, u) if G is not None else None  # Jacobian for G residual
         
@@ -38,97 +41,46 @@ class TS_VariationalProblem(object):
         self.udot.vector().apply("")                    # update ghost values
         
         # changing Fvec changes f, so PETSc will see the changes
-        F_form = self.Fvarf(self.udot, self.u, t)  # get the residual form
-        dl.assemble(F_form, tensor=Fvec)           # assemble residual
+        self.F_form = self.Fvarf(t, self.u, self.udot)  # get the residual form
+        dl.assemble(self.F_form, tensor=Fvec)           # assemble residual
         
         # apply boundary conditions.
         for bc in self.bcs:
-            bc.apply(Fvec)
-            bc.apply(x)
-            bc.apply(self.u.vector())
+            if isinstance(bc, dl.DirichletBC):
+                bc.apply(Fvec)
+                bc.apply(x)
+                bc.apply(self.u.vector())
+            else:  # assume it was a function with the standard caller signature
+                bcfun = bc(t, self.u, self.udot)
+                bc.apply(Fvec)
+                bc.apply(x)
+                bc.apply(self.u.vector())
             
     
     def evalJacobian(self, ts, t, x, xdot, shift, J, P):
+        # compute the Jacobian
+        # ref: 
         self.shift = shift
+        self.J_form = self.shift * dl.derivative(self.F_form, self.udot, self.dudot) \
+            + dl.derivative(self.F_form, self.u, self.du)  # Jacobian form
         
-        J = dl.PETScMatrix(J)
+        Jvec = dl.PETScMatrix(J)
         x.copy(self.u.vector().vec())       # copy PETSc iterate to dolfin
         self.u.vector().apply("")           # update ghost values
         
         xdot.copy(self.udot.vector().vec())     # copy PETSc iterate to dolfin
         self.udot.vector().apply("")            # update ghost values
-        dl.assemble(self.J_form, tensor=J)
+        dl.assemble(self.J_form, tensor=Jvec)
         
         # apply boundary conditions.
         for bc in self.bcs:
-            bc.apply(J)
-            # bc.apply(P)  # todo: handle preconditioner
-
-
-class TS_VariationalProblem_TDBC(object):
-    def __init__(self, F:ufl.Form, udot:dl.Function, u:dl.Function, bcs:list, G:ufl.Form=None):
-        # time-dependent bc
-        self.u = u  # initial iterate, state
-        self.V = self.u.function_space()
-        self.du = dl.Function(self.V)
-        
-        self.udot = udot  # initial iterate, time derivative
-        self.Vdot = self.udot.function_space()
-        self.dudot = dl.Function(self.Vdot)
-        
-        self.L = F  # residual form
-        self.shift = dl.Constant(0.)  # to be updated by the solver
-        self.J_form = self.shift * dl.derivative(F, self.udot) + dl.derivative(F, self.u)  # Jacobian form
-        
-        # Derive the Jacobian for the G residual
-        self.dGdu_form = dl.derivative(G, u) if G is not None else None  # Jacobian for G residual
-        
-        self.bcs = bcs
-        
-    def evalFunction(self, ts, t, x, xdot, f):
-        # wrap PETSc vectors around dolfin functions
-        x = dl.PETScVector(x)
-        xdot = dl.PETScVector(xdot)
-        Fvec = dl.PETScVector(f)
-        
-        # copy PETSc iterate to dolfin
-        x.vec().copy(self.u.vector().vec())     # copy PETSc iterate to dolfin
-        self.u.vector().apply("")               # update ghost values
-        
-        xdot.vec().copy(self.udot.vector().vec())       # copy PETSc iterate to dolfin
-        self.udot.vector().apply("")                    # update ghost values
-        
-        dl.assemble(self.L, tensor=Fvec)        # assemble residual
-        
-        # apply boundary conditions.
-        for bcfun in self.bcs:
-            bc = bcfun(t)
-            bc.apply(Fvec)             # current residual vector
-            bc.apply(x)                # current iterate vector
-            bc.apply(self.u.vector())  # current solution vector
-            
-    
-    def evalJacobian(self, ts, t, x, xdot, shift, J, P):
-        self.shift = shift  # todo: this isn't updating anything rn?
-        
-        J = dl.PETScMatrix(J)
-        x.copy(self.u.vector().vec())       # copy PETSc iterate to dolfin
-        self.u.vector().apply("")           # update ghost values
-        
-        xdot.copy(self.udot.vector().vec())     # copy PETSc iterate to dolfin
-        self.udot.vector().apply("")            # update ghost values
-        
-        # breakpoint()
-        self.J_form = self.shift * dl.derivative(self.L, self.udot) + dl.derivative(self.L, self.u, self.du)  # Jacobian form
-        
-        dl.assemble(self.J_form, tensor=J)
-        
-        # apply boundary conditions.
-        for bcfun in self.bcs:
-            bc = bcfun(t)
-            bc.apply(J)
-            # bc.apply(P)
-
+            if isinstance(bc, dl.DirichletBC):
+                bc.apply(Jvec)
+                # bc.apply(P)  # todo: handle preconditioner
+            else:  # assume it was a function with the standard caller signature
+                bcfun = bc(t, self.u, self.udot)
+                bc.apply(Jvec)
+                # bc.apply(P)  # todo: handle preconditioner            
 
 
 '''
