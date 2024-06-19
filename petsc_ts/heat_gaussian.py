@@ -98,7 +98,9 @@ ts.solve(u0.vector().vec())
 # import matplotlib.pyplot as plt
 uh = dl.Function(V)
 
-with dl.XDMFFile(COMM, "heat_gaussian.xdmf") as fid:
+import os
+os.makedirs("outputs", exist_ok=True)
+with dl.XDMFFile(COMM, "outputs/heat_gaussian.xdmf") as fid:
     fid.parameters["functions_share_mesh"] = True
     fid.parameters["rewrite_function_mesh"] = False
     for i, sshot in enumerate(ts.getTimeSpanSolutions()):
