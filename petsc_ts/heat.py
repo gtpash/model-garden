@@ -9,7 +9,7 @@ import dolfin as dl  # last.
 import ufl
 import numpy as np
 
-from TSVariationalProblem import TS_VariationalProblem_TDBC
+from TSVariationalProblem import TS_VariationalProblem
 
 # blah blah header
 # https://jsdokken.com/dolfinx-tutorial/chapter2/heat_code.html
@@ -33,16 +33,28 @@ class exactSolExpression(dl.UserExpression):
         return ()
     
     
-class TimeBC():
+class exactSolBC():
     def __init__(self, expr, V):
         self.expr = expr  # assumed to be a function with arg t for time.
         self.V = V
         
-    def __call__(self, t):
+    def __call__(self, t, x, xdot):
         # this is where you'd define the time-dependent BC.
         bc_expr = self.expr(t)
         u_D = dl.interpolate(bc_expr, self.V)
         return dl.DirichletBC(self.V, u_D, "on_boundary")
+    
+
+# define the residual form of the time-dependent PDE, F(u, udot, v) = 0
+class Fvarf:
+    def __init__(self, v, f):
+        self.v = v  # test function
+        self.f = f  # forcing function
+
+    def __call__(self, t, u, u_t):
+        form = ufl.inner(u_t, v) * ufl.dx + ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx - f * v * ufl.dx
+        
+        return form
 
 ################################################################################
 # 1. MPI setup
@@ -69,7 +81,7 @@ V = dl.FunctionSpace(mesh, "CG", 1)
 
 # Define the exact solution and boundary condition.
 u_exact_epxr = lambda t: exactSolExpression(alpha, beta, t)
-bc_handler = TimeBC(u_exact_epxr, V)
+bc_handler = exactSolBC(u_exact_epxr, V)
 u0 = dl.interpolate(u_exact_epxr(t0), V)
 
 # Set up the variational problem.
@@ -78,13 +90,12 @@ u = dl.Function(V)
 u_t = dl.Function(V)
 v = dl.TestFunction(V)
 
-# define the residual form of the time-dependent PDE, F(u, udot, v) = 0
-F = ufl.inner(u_t, v) * ufl.dx + ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx - f * v * ufl.dx
+Fvarf_handler = Fvarf(v, f)
 
 ################################################################################
 # 3. Hook into PETSc.TS
 ################################################################################
-problem = TS_VariationalProblem_TDBC(F, u_t, u0, [bc_handler], G=None)
+problem = TS_VariationalProblem(Fvarf_handler, u_t, u0, [bc_handler], G=None)
 ts = PETSc.TS().create(comm=COMM)
 ts.setType(PETSc.TS.Type.BEULER)
 ts.setProblemType(PETSc.TS.ProblemType.LINEAR)
@@ -107,11 +118,36 @@ ts.setFromOptions()             # Apply run-time options, e.g. -ts_adapt_monitor
 ts.solve(u0.vector().vec())
 
 ################################################################################
-# 4. Compute L2 error at last step
+# 5. Compute L2 error at last step
 ################################################################################
 V_ex = dl.FunctionSpace(mesh, "Lagrange", 2)  # higher order space for exact solution
 u_ex = dl.interpolate(u_exact_epxr(tf), V_ex)
 
+
+################################################################################
+# 5. Report solutions
+################################################################################
+# import matplotlib.pyplot as plt
+uh = dl.Function(V)
+
+import os
+os.makedirs("outputs", exist_ok=True)
+with dl.XDMFFile(COMM, "outputs/heat.xdmf") as fid:
+    fid.parameters["functions_share_mesh"] = True
+    fid.parameters["rewrite_function_mesh"] = False
+    for i, sshot in enumerate(ts.getTimeSpanSolutions()):
+        # load solution into a dolfin function
+        uh.vector().zero()
+        uh.vector().axpy(1., dl.PETScVector(sshot))
+        
+        t = ts.getTimeSpan()[i]      # time of snapshot
+        fid.write(uh, t)             # write snapshot to file
+        
+with dl.XDMFFile(COMM, "outputs/heat_true.xdmf") as fid:
+    fid.write(u_ex)
+
+
+breakpoint()
 import matplotlib.pyplot as plt
 
 uh = dl.Function(V)
