@@ -2,7 +2,7 @@ import dolfin as dl
 import ufl
 
 class TS_VariationalProblem(object):
-    def __init__(self, F:ufl.Form, udot:dl.Function, u:dl.Function, bcs:list, G:ufl.Form=None):
+    def __init__(self, Fvarf:ufl.Form, udot:dl.Function, u:dl.Function, bcs:list, G:ufl.Form=None):
         self.u = u  # initial iterate, state
         self.V = self.u.function_space()
         du = dl.TrialFunction(self.V)
@@ -11,10 +11,14 @@ class TS_VariationalProblem(object):
         self.Vdot = self.udot.function_space()
         dudot = dl.TrialFunction(self.Vdot)
         
-        self.L = F  # residual form
-        self.shift = dl.Constant(1.0)  # to be updated by the solver
-        self.J_form = self.shift * dl.derivative(F, udot) + dl.derivative(F, u)  # Jacobian form
+        self.Fvarf = Fvarf  # residual form
+
+        # placeholder for the residual form, jacobian form
+        self.F_form = None
+        self.shift = None
+        self.J_form = None
         
+        # todo: handle this one later
         # Derive the Jacobian for the G residual
         self.dGdu_form = dl.derivative(G, u) if G is not None else None  # Jacobian for G residual
         
@@ -33,12 +37,15 @@ class TS_VariationalProblem(object):
         xdot.vec().copy(self.udot.vector().vec())       # copy PETSc iterate to dolfin
         self.udot.vector().apply("")                    # update ghost values
         
-        dl.assemble(self.L, tensor=Fvec)        # assemble residual
+        # changing Fvec changes f, so PETSc will see the changes
+        F_form = self.Fvarf(self.udot, self.u, t)  # get the residual form
+        dl.assemble(F_form, tensor=Fvec)           # assemble residual
         
         # apply boundary conditions.
         for bc in self.bcs:
-            bc.apply(Fvec, x)
-            bc.apply(Fvec, self.u.vector())
+            bc.apply(Fvec)
+            bc.apply(x)
+            bc.apply(self.u.vector())
             
     
     def evalJacobian(self, ts, t, x, xdot, shift, J, P):
@@ -63,15 +70,15 @@ class TS_VariationalProblem_TDBC(object):
         # time-dependent bc
         self.u = u  # initial iterate, state
         self.V = self.u.function_space()
-        du = dl.Function(self.V)
+        self.du = dl.Function(self.V)
         
         self.udot = udot  # initial iterate, time derivative
         self.Vdot = self.udot.function_space()
-        dudot = dl.Function(self.Vdot)
+        self.dudot = dl.Function(self.Vdot)
         
         self.L = F  # residual form
-        self.shift = dl.Constant(1.0)  # to be updated by the solver
-        self.J_form = self.shift * dl.derivative(F, udot) + dl.derivative(F, u)  # Jacobian form
+        self.shift = dl.Constant(0.)  # to be updated by the solver
+        self.J_form = self.shift * dl.derivative(F, self.udot) + dl.derivative(F, self.u)  # Jacobian form
         
         # Derive the Jacobian for the G residual
         self.dGdu_form = dl.derivative(G, u) if G is not None else None  # Jacobian for G residual
@@ -110,6 +117,10 @@ class TS_VariationalProblem_TDBC(object):
         
         xdot.copy(self.udot.vector().vec())     # copy PETSc iterate to dolfin
         self.udot.vector().apply("")            # update ghost values
+        
+        # breakpoint()
+        self.J_form = self.shift * dl.derivative(self.L, self.udot) + dl.derivative(self.L, self.u, self.du)  # Jacobian form
+        
         dl.assemble(self.J_form, tensor=J)
         
         # apply boundary conditions.
