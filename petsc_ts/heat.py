@@ -84,7 +84,7 @@ F = ufl.inner(u_t, v) * ufl.dx + ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx - 
 ################################################################################
 # 3. Hook into PETSc.TS
 ################################################################################
-problem = TS_VariationalProblem_TDBC(F, u_t, u, [bc_handler], G=None)
+problem = TS_VariationalProblem_TDBC(F, u_t, u0, [bc_handler], G=None)
 ts = PETSc.TS().create(comm=COMM)
 ts.setType(PETSc.TS.Type.BEULER)
 ts.setProblemType(PETSc.TS.ProblemType.LINEAR)
