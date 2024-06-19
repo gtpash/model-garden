@@ -26,7 +26,7 @@ class Fvarf:
         self.v = v  # test function
         self.f = f  # forcing function
 
-    def __call__(self, u_t, u, t):
+    def __call__(self, t, u, u_t):
         form = ufl.inner(u_t, v) * ufl.dx + ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx - f * v * ufl.dx
         
         return form
