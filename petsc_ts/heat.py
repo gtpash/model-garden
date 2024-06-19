@@ -9,6 +9,7 @@ from petsc4py import PETSc  # needs to come in before dolfin.
 import dolfin as dl  # last.
 import ufl
 
+from TSVariationalProblem import TS_VariationalProblem
 
 # blah blah header
 # https://jsdokken.com/dolfinx-tutorial/chapter2/heat_code.html
@@ -121,63 +122,6 @@ class DAEProblem(object):
         return self.u.function_space().dm
 '''
 
-class TS_VariationalProblem(object):
-    def __init__(self, F:ufl.Form, udot:dl.Function, u:dl.Function, bcs:list, G:ufl.Form=None):
-        self.u = u  # initial iterate, state
-        self.V = self.u.function_space()
-        du = dl.TrialFunction(self.V)
-        
-        self.udot = udot  # initial iterate, time derivative
-        self.Vdot = self.udot.function_space()
-        dudot = dl.TrialFunction(self.Vdot)
-        
-        self.L = F  # residual form
-        self.shift = dl.Constant(1.0)  # to be updated by the solver
-        self.J_form = self.shift * dl.derivative(F, udot) + dl.derivative(F, u)  # Jacobian form
-        
-        # Derive the Jacobian for the G residual
-        self.dGdu_form = dl.derivative(G, u) if G is not None else None  # Jacobian for G residual
-        
-        self.bcs = bcs
-        
-    def evalFunction(self, ts, t, x, xdot, f):
-        # wrap PETSc vectors around dolfin functions
-        x = dl.PETScVector(x)
-        xdot = dl.PETScVector(xdot)
-        Fvec = dl.PETScVector(f)
-        
-        # copy PETSc iterate to dolfin
-        x.vec().copy(self.u.vector().vec())     # copy PETSc iterate to dolfin
-        self.u.vector().apply("")               # update ghost values
-        
-        xdot.vec().copy(self.udot.vector().vec())       # copy PETSc iterate to dolfin
-        self.udot.vector().apply("")                    # update ghost values
-        
-        dl.assemble(self.L, tensor=Fvec)        # assemble residual
-        
-        # apply boundary conditions.
-        for bc in self.bcs:
-            bc.apply(Fvec, x)
-            bc.apply(Fvec, self.u.vector())
-            
-    
-    def evalJacobian(self, ts, t, x, xdot, shift, J, P):
-        self.shift = shift
-        
-        J = dl.PETScMatrix(J)
-        x.copy(self.u.vector().vec())       # copy PETSc iterate to dolfin
-        self.u.vector().apply("")           # update ghost values
-        
-        xdot.copy(self.udot.vector().vec())     # copy PETSc iterate to dolfin
-        self.udot.vector().apply("")            # update ghost values
-        dl.assemble(self.J_form, tensor=J)
-        
-        # apply boundary conditions.
-        for bc in self.bcs:
-            bc.apply(J)
-            # bc.apply(P)  # todo: handle preconditioner
-
-
 # class TS_VariationalSolver():
 #     def __init__(self, problem, comm):
 #         self.problem = problem
@@ -195,11 +139,10 @@ if problem.G is None:
             self.set_default_parameter("ts_type", "arkimex")
 '''
         
-        
+# MPI setup.
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
-
 print(f"I'm rank {rank} of {size}", flush=True)
 
 
@@ -212,11 +155,57 @@ beta = 1.2      # simulation parameter
 nx = 5          # number of mesh points in x-direction
 ny = 5          # number of mesh points in y-direction
 
-domain = dl.UnitSquareMesh(comm, 10, 10)
-
-
-# TODO
+mesh = dl.UnitSquareMesh(comm, 10, 10)
 V = dl.FunctionSpace(mesh, "CG", 1)
+
+class exactSolExpression(dl.UserExpression):
+    def __init__(self, alpha, beta, t, **kwargs):
+        super().__init__(kwargs)
+        
+        self.alpha = alpha
+        self.beta = beta
+        self.t = t
+
+    def eval(self, value, x):
+        value[0] = 1 + x[0]**2 + self.alpha * x[1]**2 + self.beta * self.t
+
+    def value_shape(self):
+        return ()
+    
+    
+class TimeBC():
+    def __init__(self, expr, V):
+        self.expr = expr  # assumed to be a function with arg t for time.
+        self.V = V
+        
+    def __call__(self, t):
+        bc_expr = self.expr(t)
+        u_D = dl.interpolate(bc_expr, self.V)
+        return dl.DirichletBC(self.V, u_D, "on_boundary")
+
+
+# Define the exact solution and boundary condition.
+u_exact_epxr = lambda t: exactSolExpression(alpha, beta, t)  # exact solution at t=0
+bc_handler = TimeBC(u_exact_epxr, V)
+bc0 = bc_handler(0.)
+
+# u_exact = u_exact_epxr(0.)
+# u_D = dl.interpolate(u_exact, V)
+# bc = dl.DirichletBC(V, u_D, "on_boundary")  # todo: this might not work.
+
+# Set up the variational problem.
+f = dl.Constant( beta - 2 - 2 * alpha )  # forcing function
+u = dl.Function(V)
+udot = dl.Function(V)
+v = dl.TestFunction(V)
+
+# define the residual form of the time-dependent PDE, F(u, udot, v) = 0
+F = ufl.inner(udot, v) * ufl.dx + ufl.inner(ufl.grad(u), ufl.grad(v)) * ufl.dx - f * v * ufl.dx
+
+breakpoint()
+
+
+
 
 u = dl.Function(V)
 u_t = dl.Function(V)
@@ -226,9 +215,6 @@ F = dl.inner(u_t, v) * dl.dx + dl.inner(dl.grad(u), dl.grad(v)) * dl.dx - 1.0 * 
 u0_expr = dl.Expression("x[0]*(1.-x[0])*x[1]*(1.-x[1])", element=V.ufl_element())
 u0 = dl.interpolate(u0_expr, V)
 
-# Define the boundary condition
-u_D = dl.Constant(0.0)
-bc = dl.DirichletBC(V, u_D, "on_boundary")
 
 
 
