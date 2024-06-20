@@ -52,6 +52,7 @@ class TVDenoising:
         return H
     
     def LD_Hessian(self,m):
+        # lagged diffusivity
         H_ls = dl.inner(self.m_tilde, self.m_hat)*dl.dx
         
         TVm = dl.sqrt( dl.inner(dl.grad(m), dl.grad(m)) + self.beta)
