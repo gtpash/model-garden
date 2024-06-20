@@ -80,7 +80,7 @@ class TS_VariationalProblem(object):
             else:  # assume it was a function with the standard caller signature
                 bc_handler = bc(t, self.u, self.udot)
                 bc_handler.apply(Jvec)
-                # bc.apply(P)  # todo: handle preconditioner            
+                # bc.apply(P)  # todo: handle preconditioner
 
 
 '''
