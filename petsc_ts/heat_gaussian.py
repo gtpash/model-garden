@@ -1,19 +1,28 @@
-from mpi4py import MPI  # must be imported first or you get SCOTCH errors.
+# This example demonstrates how to couple FEniCS with PETSc.TS
+# to solve a time-dependent PDE. 
+# 
+# Here we solve the heat equation with a Gaussian bump initial condition.
+# u_t - Δu = 0 in Ω x (0, T]
+# u = 0 on ∂Ω x (0, T]
+# u = u0 in Ω x {0}
+# 
+# The example is taken from the FEniCSx tutorial:
+# https://jsdokken.com/dolfinx-tutorial/chapter2/diffusion_code.html
+# 
+# More PETSc.TS examples with PETSc4py can be found at:
+# https://github.com/erdc/petsc4py/blob/master/demo/ode/
+
+from mpi4py import MPI  # must be imported first to avoid PTSCOTCH errors.
 
 import sys
 import petsc4py
-petsc4py.init(sys.argv)
+petsc4py.init(sys.argv)     # for grabbing CLI arguments.
 from petsc4py import PETSc  # needs to come in before dolfin.
 
-import dolfin as dl  # last.
+import dolfin as dl
 import ufl
 import numpy as np
-
 from TSVariationalProblem import TS_VariationalProblem
-
-# blah blah header
-# https://jsdokken.com/dolfinx-tutorial/chapter2/diffusion_code.html
-# more demos: https://github.com/erdc/petsc4py/blob/master/demo/ode/
 
 ################################################################################
 # 0. Set up any necessary expressions
@@ -76,7 +85,6 @@ ts.setType(PETSc.TS.Type.BEULER)
 ts.setProblemType(PETSc.TS.ProblemType.LINEAR)
 ts.setTimeSpan(np.linspace(t0, tf, num_steps + 1))  # +1 for book-keeping
 ts.setExactFinalTime(PETSc.TS.ExactFinalTime.MATCHSTEP)
-# ts.setSaveTrajectory()
 
 # you need to pass objects of the correct size
 vec = dl.Function(V).vector().vec()  # PETSc Vec of appropriate size
