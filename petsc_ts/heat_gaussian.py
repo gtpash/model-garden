@@ -2,7 +2,7 @@
 # to solve a time-dependent PDE. 
 # 
 # Here we solve the heat equation with a Gaussian bump initial condition.
-# u_t - Δu = 0 in Ω x (0, T]
+# u_t - Δu = f in Ω x (0, T]
 # u = 0 on ∂Ω x (0, T]
 # u = u0 in Ω x {0}
 # 
