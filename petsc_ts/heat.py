@@ -32,19 +32,36 @@ class exactSolExpression(dl.UserExpression):
     def value_shape(self):
         return ()
     
+def uex(alpha, beta, t):
+    return dl.Expression("1 + x[0]*x[0] + alpha * x[1]*x[1] + beta * t", alpha=alpha, beta=beta, t=t, degree=2)
+    
+class Boundary(dl.SubDomain):
+    def inside(self, x, on_boundary):
+        tol = 1E-14
+        return on_boundary and (dl.near(x[0], 0, tol) or dl.near(x[0], 1, tol) or dl.near(x[1], 0, tol) or dl.near(x[1], 1, tol))
+    
+def boundary(x, on_boundary):
+    tol = 1E-14
+    return on_boundary and (dl.near(x[0], 0, tol) or dl.near(x[0], 1, tol) or dl.near(x[1], 0, tol) or dl.near(x[1], 1, tol))
+
+import matplotlib.pyplot as plt
     
 class exactSolBC():
-    def __init__(self, alpha, beta, V):
+    def __init__(self, alpha, beta, V, boundary):
         self.alpha = alpha
         self.beta = beta
         self.V = V
+        self.boundary = boundary
         
-    def __call__(self, t, x, xdot):
+    def __call__(self, t, u, udot):
         # this is where you'd define the time-dependent BC.
         bc_expr = dl.Expression("1 + x[0]*x[0] + alpha * x[1]*x[1] + beta * t", alpha=alpha, beta=beta, t=t, degree=2)
         u_D = dl.interpolate(bc_expr, self.V)
-        # return dl.DirichletBC(self.V, u_D, "on_boundary")
-        return dl.DirichletBC(self.V, u_D, dl.DomainBoundary())
+        # dl.plot(u_D)
+        # plt.savefig(f"outputs/heat_bc_{t}.png")
+        # plt.close()
+        return dl.DirichletBC(self.V, u_D, self.boundary)
+        # return dl.DirichletBC(self.V, u_D, dl.DomainBoundary())
     
 
 # define the residual form of the time-dependent PDE, F(u, udot, v) = 0
@@ -83,8 +100,9 @@ V = dl.FunctionSpace(mesh, "CG", 1)
 
 # Define the exact solution and boundary condition.
 u_exact_epxr = lambda t: exactSolExpression(alpha, beta, t)
-bc_handler = exactSolBC(alpha, beta, V)
-u0 = dl.interpolate(u_exact_epxr(t0), V)
+bc_handler = exactSolBC(alpha, beta, V, boundary)
+# u0 = dl.interpolate(u_exact_epxr(t0), V)
+u0 = dl.interpolate(uex(alpha, beta, t0), V)
 
 # Set up the variational problem.
 f = dl.Constant( beta - 2 - 2 * alpha )  # forcing function
@@ -123,7 +141,7 @@ ts.solve(u0.vector().vec())
 # 5. Compute L2 error at last step
 ################################################################################
 V_ex = dl.FunctionSpace(mesh, "Lagrange", 2)  # higher order space for exact solution
-u_ex = dl.interpolate(u_exact_epxr(tf), V_ex)
+u_ex = dl.interpolate(uex(alpha, beta, tf), V_ex)
 
 
 ################################################################################
@@ -145,8 +163,20 @@ with dl.XDMFFile(COMM, "outputs/heat.xdmf") as fid:
         t = ts.getTimeSpan()[i]      # time of snapshot
         fid.write(uh, t)             # write snapshot to file
         
-with dl.XDMFFile(COMM, "outputs/heat_true.xdmf") as fid:
-    fid.write(u_ex)
+with dl.XDMFFile(COMM, "outputs/heat_ex.xdmf") as fid:
+    fid.parameters["functions_share_mesh"] = True
+    fid.parameters["rewrite_function_mesh"] = False
+    for i, t in enumerate(ts.getTimeSpan()):
+        # load solution into a dolfin function
+        u_ex = dl.interpolate(uex(alpha, beta, t), V_ex)
+        fid.write(uh, t)             # write snapshot to file
+        
+for i, t in enumerate(ts.getTimeSpan()):
+    # load solution into a dolfin function
+    u_ex = dl.interpolate(uex(alpha, beta, t), V_ex)
+    dl.plot(u_ex)
+    plt.savefig(f"outputs/heat_ex_{t}.png")
+    plt.close()
 
 
 breakpoint()
