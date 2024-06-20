@@ -34,15 +34,17 @@ class exactSolExpression(dl.UserExpression):
     
     
 class exactSolBC():
-    def __init__(self, expr, V):
-        self.expr = expr  # assumed to be a function with arg t for time.
+    def __init__(self, alpha, beta, V):
+        self.alpha = alpha
+        self.beta = beta
         self.V = V
         
     def __call__(self, t, x, xdot):
         # this is where you'd define the time-dependent BC.
-        bc_expr = self.expr(t)
+        bc_expr = dl.Expression("1 + x[0]*x[0] + alpha * x[1]*x[1] + beta * t", alpha=alpha, beta=beta, t=t, degree=2)
         u_D = dl.interpolate(bc_expr, self.V)
-        return dl.DirichletBC(self.V, u_D, "on_boundary")
+        # return dl.DirichletBC(self.V, u_D, "on_boundary")
+        return dl.DirichletBC(self.V, u_D, dl.DomainBoundary())
     
 
 # define the residual form of the time-dependent PDE, F(u, udot, v) = 0
@@ -81,7 +83,7 @@ V = dl.FunctionSpace(mesh, "CG", 1)
 
 # Define the exact solution and boundary condition.
 u_exact_epxr = lambda t: exactSolExpression(alpha, beta, t)
-bc_handler = exactSolBC(u_exact_epxr, V)
+bc_handler = exactSolBC(alpha, beta, V)
 u0 = dl.interpolate(u_exact_epxr(t0), V)
 
 # Set up the variational problem.
