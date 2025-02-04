@@ -73,6 +73,20 @@ class PoissonBox():
                                        bcs=self.pde.bc)
 
 
+class MultiPoissonVarf:
+    def __init__(self, f, idx):
+        self.f = f
+        self.idx = idx
+
+    def __call__(self, u, m, p):
+        # Note u, p are unique for specific problem, m is a vector with all parameters.
+        current_m = ufl.split(m)[self.idx]  # index parameter for the current problem        
+        return ufl.exp(current_m)*ufl.inner(ufl.grad(u), ufl.grad(p))*ufl.dx - self.f*p*ufl.dx
+    
+class MultiPoissonBox():
+    # todo
+
+
 class splitCircle(dl.UserExpression):
     """Expression implementing a circle with different values on the left and right sides.
     """
