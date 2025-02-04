@@ -6,7 +6,7 @@ import dolfin as dl
 import numpy as np
 import matplotlib.pyplot as plt
 
-sys.path.append( os.environ.get('HIPPYLIB_DEV_PATH') )
+sys.path.append( os.environ.get('HIPPYLIB_PATH') )
 import hippylib as hp
 
 from models import PoissonBox, splitCircle
@@ -253,7 +253,3 @@ plotPointwiseObs(p2.Vh, mf, B2, MESHFPATH, fpath="figs/dp/p2_mreconstruct.png", 
 uf.vector().zero()
 uf.vector().axpy(1., x2[hp.STATE])
 plotPointwiseObs(p1.Vh, uf, B2, MESHFPATH, fpath="figs/dp/p2_infer_state.png")
-
-##################################################
-# TODO: vector TV reconstruction
-##################################################
