@@ -84,7 +84,77 @@ class MultiPoissonVarf:
         return ufl.exp(current_m)*ufl.inner(ufl.grad(u), ufl.grad(p))*ufl.dx - self.f*p*ufl.dx
     
 class MultiPoissonBox():
-    # todo
+    def __init__(self, npde, nh):
+        self.SEP = "\n"+"#"*80+"\n"  # for printing
+        self.npde = npde
+        self.nh = nh
+        
+    def setupMesh(self):
+        mesh = dl.UnitSquareMesh(self.nh, self.nh)
+        self.mesh = mesh
+        self.rank = dl.MPI.rank(self.mesh.mpi_comm())
+        self.nproc = dl.MPI.size(self.mesh.mpi_comm())
+        
+    def setupFunctionSpaces(self):
+        Vhu = dl.FunctionSpace(self.mesh, 'Lagrange', 1)  # for state / adjoint
+        Vhm = dl.VectorFunctionSpace(self.mesh, 'Lagrange', 1, dim=self.npde)  # for all parameters
+        self.Vhm0 = dl.FunctionSpace(self.mesh, 'Lagrange', 1)  # for a single parameter
+        self.Vh = [Vhu, Vhm, Vhu]
+        ndofs = [self.Vh[hp.STATE].dim(), self.Vh[hp.PARAMETER].dim(), self.Vh[hp.ADJOINT].dim()]
+        if self.rank == 0:
+            print(self.SEP, "Set up the mesh and finite element spaces", self.SEP)
+            print(f"Number of dofs: STATE={ndofs[0]}, PARAMETER={ndofs[1]}, ADJOINT={ndofs[2]}")
+        
+        # set up a function assigner
+        self.assigner = dl.FunctionAssigner(self.Vh[hp.PARAMETER], [self.Vhm0]*self.npde)
+        # self.rev_assigner = dl.FunctionAssigner(self.Vhm0, self.Vh[hp.PARAMETER])
+    
+    def setupPDE(self):
+        # variational form
+        f = dl.Constant(1.0)
+        
+        # boundary conditions
+        zero = dl.Constant(0.0)
+        bc = dl.DirichletBC(self.Vh[hp.STATE], zero, u0_boundary)
+        bc0 = bc
+        
+        # setup the pde problems
+        pdes = []
+        for i in range(self.npde):
+            pde_varf = MultiPoissonVarf(f, i)
+            pde = hp.PDEVariationalProblem(self.Vh, pde_varf, bc, bc0, is_fwd_linear=True)
+            pdes.append(pde)
+        
+        self.pde = hp.MultiPDEProblem(pdes)
+        
+    def assign_component(self, out:dl.Function, x:dl.Function, idx:float):
+        """Assign component of a vector to a function space.
+
+        Args:
+            out (dl.Function): Function to assign to.
+            x (dl.Function): Vector / Mixed Element Function to draw component from.
+            idx (float): Index of component to assign.
+            
+        Returns:
+            None (write to out)
+        """
+        fa = dl.FunctionAssigner(self.Vhm0, self.Vh[hp.PARAMETER].sub(idx))
+        fa.assign(out, x)
+        
+    def split_component(self, x:dl.Function, idx:float):
+        """Split a vector into a component.
+
+        Args:
+            x (dl.Function): Vector / Mixed Element Function to draw component from.
+            idx (float): Index of component to grab.
+
+        Returns:
+            dl.Function: Function representing the component.
+        """
+        out = x.sub(idx, deepcopy=True)
+        return out
+    
+    
 
 
 class splitCircle(dl.UserExpression):
