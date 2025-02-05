@@ -77,6 +77,10 @@ hp.parRandom.normal_perturb(np.sqrt(NOISE_VARIANCE), noisy_data.vector())
 noisy_data.rename("data", "data")
 
 # visualization
+dl.plot(m_fun_true)
+plt.savefig(os.path.join(FIG_DIR, "true_param.png"))
+plt.close()
+
 dl.plot(u_fun_true)
 plt.savefig(os.path.join(FIG_DIR, "true_state.png"))
 plt.close()
