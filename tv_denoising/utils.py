@@ -75,6 +75,43 @@ class parameter2NoisyObservations:
         self.noisy_data.axpy(1., noise)
 
 
+def add_noise_to_observations(true_data:dl.Vector, noise_level:float, B:hp.PointwiseStateObservation=None)->dl.Vector:
+    """Add noise to a vector.
+
+    Args:
+        true_data (dl.Vector): True data.
+        noise_level (float): Noise level.
+        B (hp.PointwiseStateObservation, optional): Pointwise observation operator. Defaults to None.
+
+    Returns:
+        (dl.Vector): Noisy data.
+        (float): Noise standard deviation.
+    """
+    
+    # apply observation operator
+    if B is not None:
+        noisy_data = dl.Vector(B.mpi_comm())
+        B.init_vector(noisy_data, 0)
+        noisy_data.axpy(1., B*true_data)
+    else:
+        noisy_data = dl.Vector(true_data)
+        noisy_data.axpy(1., true_data)
+    
+    # determine noise
+    MAX = noisy_data.norm("linf")
+    noise_std_dev = noise_level * MAX
+    
+    # generate noise
+    noise = dl.Vector(noisy_data)
+    noise.zero()
+    hp.parRandom.normal(noise_std_dev, noise)
+    
+    # add noise to measurements
+    noisy_data.axpy(1., noise)
+    
+    return noisy_data, noise_std_dev
+
+
 def interpolatePointwiseObsOp(Vh:dl.FunctionSpace, B:hp.PointwiseStateObservation)->List[dl.Function]:
     """Interpolate a PointwiseObservationOperator onto function space.
 
