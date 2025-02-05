@@ -23,7 +23,7 @@ MAX_ITER = 1000
 CG_MAX_ITER = 75
 MAX_BACKTRACK = 25
 DO_LCURVE = False
-os.makedirs("figs/dp", exist_ok=True)  # ensure figure directory exists
+os.makedirs("figs/imp", exist_ok=True)  # ensure figure directory exists
 os.makedirs("mesh", exist_ok=True)  # ensure mesh directory exists
 NDIM = 64
 
@@ -59,26 +59,6 @@ p1.p2o.generateNoisyObservations()
 
 # set up the misfit observation operator
 p1.misfit = hp.DiscreteStateObservation(B=B1, data=p1.p2o.noisy_data, noise_variance=p1.p2o.noise_std_dev**2)
-
-##################################################
-# Visualization
-##################################################
-
-# Write out the mesh
-MESHFPATH = os.path.join("mesh", "unitsquare.xdmf")
-with dl.XDMFFile(MESHFPATH) as fid:
-    fid.write(p1.Vh[hp.STATE].mesh())
-    
-plotPointwiseObs(p1.Vh, p1.mtrue, B1, MESHFPATH, fpath="figs/dp/p1_mtrue.png", name="Log Parameter", clim=CLIM)
-
-# solve for the true states and plot
-xtmp = [p1.pde.generate_state(), p1.mtrue.vector(), None]
-p1.pde.solveFwd(xtmp[hp.STATE], xtmp)
-
-uf = dl.Function(p1.Vh[hp.STATE])
-uf.vector().zero()
-uf.vector().axpy(1., xtmp[hp.STATE])
-plotPointwiseObs(p1.Vh, uf, B1, MESHFPATH, fpath="figs/dp/p1_utrue.png", name="State")
 
 ##################################################
 # Perform L-Curve analysis for first problem
@@ -129,7 +109,7 @@ if DO_LCURVE:
     plt.ylabel("TV Regularization")
     plt.title("L-Curve for Poisson TV Denoising")
     [ax.annotate(fr"$\alpha$={ALPHAS[i]:.2e}", (misfits[i], regs[i]/ALPHAS[i])) for i in range(len(ALPHAS))]
-    plt.savefig("figs/dp/tv_poisson_lcurve.png")
+    plt.savefig("figs/imp/tv_poisson_lcurve.png")
 
 ##################################################
 # Set up the second poisson problem
@@ -157,7 +137,31 @@ p2.p2o.generateNoisyObservations()
 # set up the misfit observation operator
 p2.misfit = hp.DiscreteStateObservation(B=B2, data=p2.p2o.noisy_data, noise_variance=p2.p2o.noise_std_dev**2)
 
-# TODO: plot the noisy data?
+##################################################
+# Set up the third poisson problem
+##################################################
+p3 = PoissonBox(NDIM)
+p3.setupMesh()
+p3.setupFunctionSpaces()
+p3.setupPDE()
+
+# set up the true parameter
+expr = splitCircle(cx=C[0], cy=C[1], r=R, vl=VL, vr=VR, vo=VO)
+p3.mtrue = dl.interpolate(expr, p3.Vh[hp.PARAMETER])
+
+# set up observation operator for the top right corner
+xx = np.linspace(0.02, 0.5, 50, endpoint=False)
+xv, yv = np.meshgrid(xx, xx)
+targets = np.vstack([xv.ravel(), yv.ravel()]).T
+print(f"Number of observation points: {targets.shape[0]}")
+B3 = hp.assemblePointwiseObservation(p3.Vh[hp.STATE], targets)
+
+# generate noisy observations
+p3.p2o = parameter2NoisyObservations(p3.pde, p3.mtrue.vector(), NOISE_LEVEL, B3)
+p3.p2o.generateNoisyObservations()
+
+# set up the misfit observation operator
+p3.misfit = hp.DiscreteStateObservation(B=B3, data=p3.p2o.noisy_data, noise_variance=p3.p2o.noise_std_dev**2)
 
 ##################################################
 # Visualization
@@ -168,9 +172,9 @@ MESHFPATH = os.path.join("mesh", "unitsquare.xdmf")
 with dl.XDMFFile(MESHFPATH) as fid:
     fid.write(p1.Vh[hp.STATE].mesh())
     
-plotPointwiseObs(p1.Vh, p1.mtrue, B1, MESHFPATH, fpath="figs/dp/p1_mtrue.png", name="Log Parameter", clim=CLIM)
-
-plotPointwiseObs(p2.Vh, p2.mtrue, B2, MESHFPATH, fpath="figs/dp/p2_mtrue.png", name="Log Parameter", clim=CLIM)
+plotPointwiseObs(p1.Vh, p1.mtrue, B1, MESHFPATH, fpath="figs/imp/p1_mtrue.png", name="Log Parameter", clim=CLIM)
+plotPointwiseObs(p2.Vh, p2.mtrue, B2, MESHFPATH, fpath="figs/imp/p2_mtrue.png", name="Log Parameter", clim=CLIM)
+plotPointwiseObs(p3.Vh, p3.mtrue, B3, MESHFPATH, fpath="figs/imp/p3_mtrue.png", name="Log Parameter", clim=CLIM)
 
 # solve for the true states and plot
 xtmp = [p1.pde.generate_state(), p1.mtrue.vector(), None]
@@ -179,14 +183,21 @@ p1.pde.solveFwd(xtmp[hp.STATE], xtmp)
 uf = dl.Function(p1.Vh[hp.STATE])
 uf.vector().zero()
 uf.vector().axpy(1., xtmp[hp.STATE])
-plotPointwiseObs(p1.Vh, uf, B1, MESHFPATH, fpath="figs/dp/p1_utrue.png", name="State")
+plotPointwiseObs(p1.Vh, uf, B1, MESHFPATH, fpath="figs/imp/p1_utrue.png", name="State")
 
 xtmp = [p2.pde.generate_state(), p2.mtrue.vector(), None]
 p2.pde.solveFwd(xtmp[hp.STATE], xtmp)
 
 uf.vector().zero()
 uf.vector().axpy(1., xtmp[hp.STATE])
-plotPointwiseObs(p2.Vh, uf, B2, MESHFPATH, fpath="figs/dp/p2_utrue.png", name="State")
+plotPointwiseObs(p2.Vh, uf, B2, MESHFPATH, fpath="figs/imp/p2_utrue.png", name="State")
+
+xtmp = [p3.pde.generate_state(), p3.mtrue.vector(), None]
+p3.pde.solveFwd(xtmp[hp.STATE], xtmp)
+
+uf.vector().zero()
+uf.vector().axpy(1., xtmp[hp.STATE])
+plotPointwiseObs(p3.Vh, uf, B3, MESHFPATH, fpath="figs/imp/p3_utrue.png", name="State")
 
 ##################################################
 # Solve the problems individually
