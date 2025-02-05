@@ -11,7 +11,6 @@ import hippylib as hp
 
 from models import PoissonBox, MultiPoissonBox, splitCircle
 from utils import add_noise_to_observations, plotPointwiseObs
-from multiPDEProblem import MultiPDEProblem
 
 # constants, initializations
 VERBOSE = True
