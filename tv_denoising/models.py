@@ -125,8 +125,8 @@ class MultiPoissonBox():
         
         self.pde = hp.MultiPDEProblem(pdes)
         
-    def assign_component(self, out:dl.Function, x:dl.Function, idx:float):
-        """Assign component of a vector to a function space.
+    def get_component(self, out:dl.Function, x:dl.Function, idx:float):
+        """Get component of a vector and assign to a function space.
 
         Args:
             out (dl.Function): Function to assign to.
