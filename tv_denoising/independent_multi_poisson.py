@@ -150,7 +150,7 @@ expr = splitCircle(cx=C[0], cy=C[1], r=R, vl=VL, vr=VR, vo=VO)
 p3.mtrue = dl.interpolate(expr, p3.Vh[hp.PARAMETER])
 
 # set up observation operator for the top right corner
-xx = np.linspace(0.02, 0.5, 50, endpoint=False)
+xx = np.linspace(0.02, 0.5, 25, endpoint=False)
 xv, yv = np.meshgrid(xx, xx)
 targets = np.vstack([xv.ravel(), yv.ravel()]).T
 print(f"Number of observation points: {targets.shape[0]}")
@@ -229,7 +229,7 @@ if VERBOSE:
     print(f"Total number of CG iterations:\t{solver1.total_cg_iter}")
 _, _, reg1, misfit1 = model1.cost(x1)
 
-
+# set up and solve the second problem
 tvprior2 = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA, peps=PEPS*ALPHA)
 model2 = hp.ModelNS(p2.pde, p2.misfit, None, tvprior2, which=TVONLY)
 solver2 = hp.ReducedSpacePDNewtonCG(model2, parameters=solver_params)
@@ -245,22 +245,47 @@ if VERBOSE:
     print(f"Total number of CG iterations:\t{solver2.total_cg_iter}")
 _, _, reg2, misfit2 = model2.cost(x2)
 
+# set up and solve the third problem
+tvprior3 = hp.TVPrior(Vhm, Vhw, Vhwnorm, ALPHA, BETA, peps=PEPS*ALPHA)
+model3 = hp.ModelNS(p3.pde, p3.misfit, None, tvprior3, which=TVONLY)
+solver3 = hp.ReducedSpacePDNewtonCG(model3, parameters=solver_params)
+
+m0 = p3.pde.generate_parameter()
+m0.zero()
+start = time.perf_counter()
+x3 = solver3.solve([None, m0, None, None])
+if VERBOSE:
+    print(f"Time to solve: {(time.perf_counter()-start)/60:.2f} minutes")
+    print(f"Solver convergence criterion:\t{solver3.termination_reasons[solver3.reason]}")
+    print(f"Number of Newton iterations:\t{solver3.it}")
+    print(f"Total number of CG iterations:\t{solver3.total_cg_iter}")
+_, _, reg3, misfit3 = model3.cost(x3)
+
 ##################################################
 # Visualization
 ##################################################
 mf = dl.Function(p1.Vh[hp.PARAMETER])
 mf.vector().zero()
 mf.vector().axpy(1., x1[hp.PARAMETER])
-plotPointwiseObs(p1.Vh, mf, B1, MESHFPATH, fpath="figs/dp/p1_mreconstruct.png", name="Log Parameter")
+plotPointwiseObs(p1.Vh, mf, B1, MESHFPATH, fpath="figs/imp/p1_mreconstruct.png", name="Log Parameter")
 
 uf.vector().zero()
 uf.vector().axpy(1., x1[hp.STATE])
-plotPointwiseObs(p1.Vh, uf, B1, MESHFPATH, fpath="figs/dp/p1_infer_state.png")
+plotPointwiseObs(p1.Vh, uf, B1, MESHFPATH, fpath="figs/imp/p1_infer_state.png")
 
 mf.vector().zero()
 mf.vector().axpy(1., x2[hp.PARAMETER])
-plotPointwiseObs(p2.Vh, mf, B2, MESHFPATH, fpath="figs/dp/p2_mreconstruct.png", name="Log Parameter", clim=CLIM)
+plotPointwiseObs(p2.Vh, mf, B2, MESHFPATH, fpath="figs/imp/p2_mreconstruct.png", name="Log Parameter", clim=CLIM)
 
 uf.vector().zero()
 uf.vector().axpy(1., x2[hp.STATE])
-plotPointwiseObs(p1.Vh, uf, B2, MESHFPATH, fpath="figs/dp/p2_infer_state.png")
+plotPointwiseObs(p2.Vh, uf, B2, MESHFPATH, fpath="figs/imp/p2_infer_state.png")
+
+mf.vector().zero()
+mf.vector().axpy(1., x3[hp.PARAMETER])
+plotPointwiseObs(p3.Vh, mf, B3, MESHFPATH, fpath="figs/imp/p3_mreconstruct.png", name="Log Parameter", clim=CLIM)
+
+uf.vector().zero()
+uf.vector().axpy(1., x3[hp.STATE])
+plotPointwiseObs(p3.Vh, uf, B3, MESHFPATH, fpath="figs/imp/p3_infer_state.png")
+
