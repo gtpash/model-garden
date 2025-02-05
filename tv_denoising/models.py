@@ -8,11 +8,10 @@ import hippylib as hp
 
 from utils import parameter2NoisyObservations
 
-## boundaries for the unit square
+# boundaries for the unit square
 def u0_boundary(x, on_boundary):
     return on_boundary
 
-## define the variational form
 class PoissonVarf:
     def __init__(self, f):
         self.f = f
