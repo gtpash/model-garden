@@ -152,9 +152,6 @@ class MultiPoissonBox():
         out = x.sub(idx, deepcopy=True)
         return out
     
-    
-
-
 class splitCircle(dl.UserExpression):
     """Expression implementing a circle with different values on the left and right sides.
     """
