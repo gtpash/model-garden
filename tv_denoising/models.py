@@ -106,7 +106,6 @@ class MultiPoissonBox():
         
         # set up a function assigner
         self.assigner = dl.FunctionAssigner(self.Vh[hp.PARAMETER], [self.Vhm0]*self.npde)
-        # self.rev_assigner = dl.FunctionAssigner(self.Vhm0, self.Vh[hp.PARAMETER])
     
     def setupPDE(self):
         # variational form
