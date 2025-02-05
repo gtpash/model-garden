@@ -191,7 +191,7 @@ if DO_LCURVE:
     plt.loglog(misfits, regs / ALPHAS, 'x') #todo, might need to fix this
     plt.xlabel("Data Fidelity")
     plt.ylabel("TV Regularization")
-    plt.title("L-Curve for Poisson TV Denoising")
+    plt.title("L-Curve for qPACT Diffusion Approximation TV Denoising")
     [ax.annotate(fr"$\alpha$={ALPHAS[i]:.2e}", (misfits[i], regs[i]/ALPHAS[i])) for i in range(len(ALPHAS))]
     plt.savefig(os.path.join(FIG_DIR, "tv_poisson_lcurve.png"))
 
