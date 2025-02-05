@@ -77,15 +77,15 @@ hp.parRandom.normal_perturb(np.sqrt(NOISE_VARIANCE), noisy_data.vector())
 noisy_data.rename("data", "data")
 
 # visualization
-dl.plot(m_fun_true)
+hp.nb.plot(m_fun_true)
 plt.savefig(os.path.join(FIG_DIR, "true_param.png"))
 plt.close()
 
-dl.plot(u_fun_true)
+hp.nb.plot(u_fun_true)
 plt.savefig(os.path.join(FIG_DIR, "true_state.png"))
 plt.close()
 
-dl.plot(noisy_data)
+hp.nb.plot(noisy_data)
 plt.savefig(os.path.join(FIG_DIR, "noisy_data.png"))
 plt.close()
 
@@ -128,15 +128,15 @@ obs_fun = dl.project(ug_fun*mg_fun, qpact.Vh[hp.STATE])
 obs_fun.rename("obs", "obs")
 
 # visualization
-dl.plot(mg_fun)
+hp.nb.plot(mg_fun)
 plt.savefig(os.path.join(FIG_DIR, "param_reconstruction_gaussian.png"))
 plt.close()
 
-dl.plot(ug_fun)
+hp.nb.plot(ug_fun)
 plt.savefig(os.path.join(FIG_DIR, "state_reconstruction_gaussian.png"))
 plt.close()
 
-dl.plot(obs_fun)
+hp.nb.plot(obs_fun)
 plt.savefig(os.path.join(FIG_DIR, "obs_reconstruction_gaussian.png"))
 plt.close()
 
@@ -209,14 +209,14 @@ obstv_fun = dl.project(utv_fun*mtv_fun, qpact.Vh[hp.STATE])
 obstv_fun.rename("obs", "obs")
 
 # visualization
-dl.plot(mtv_fun)
+hp.nb.plot(mtv_fun)
 plt.savefig(os.path.join(FIG_DIR, "param_reconstruction_tv.png"))
 plt.close()
 
-dl.plot(utv_fun)
+hp.nb.plot(utv_fun)
 plt.savefig(os.path.join(FIG_DIR, "state_reconstruction_tv.png"))
 plt.close()
 
-dl.plot(obstv_fun)
+hp.nb.plot(obstv_fun)
 plt.savefig(os.path.join(FIG_DIR, "obs_reconstruction_tv.png"))
 plt.close()
