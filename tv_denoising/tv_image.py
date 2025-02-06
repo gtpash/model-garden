@@ -1,3 +1,8 @@
+#############################################################################
+# De-noising an image using total variation regularization
+# WARNING! This code is not MPI parallelized.
+#############################################################################
+
 import dolfin as dl
 import ufl
 import time
