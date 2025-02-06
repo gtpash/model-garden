@@ -49,12 +49,11 @@ class DiffusionApproximationMisfitForm:
 
 
 class PACTvarf:
-    def __init__(self, u0:dl.Constant):
+    def __init__(self, u0:dl.Function|dl.Constant):
         """Define the forward model for the diffusion approximation to radiative transfer equations.
 
         Args:
-            u0 (dl.Constant): Incident fluence (Robin condition)
-            m0 (dl.Function): Parameter mean. [D0, mu0]
+            u0 (dl.Function | dl.Constant): Incident fluence (Robin condition)
         """
         
         self.u0 = u0
@@ -75,7 +74,6 @@ class PACTMisfitForm:
         Args:
             d (dl.Function): Data.
             sigma2 (float): Variance of the data.
-            m0 (dl.Function): Parameter mean. [D0, mu0]
         """
         self.sigma2 = sigma2
         self.d = d
@@ -137,6 +135,8 @@ class qPACT_DA(PDEExperiment):
 
 
 class qPACT(PDEExperiment):
+    """Single qPACT problem.
+    """
     def __init__(self, comm, mesh_fpath:str):
         self.SEP = "\n"+"#"*80+"\n"  # for printing
         self.comm = comm
@@ -194,7 +194,20 @@ class qPACT(PDEExperiment):
         """
         out = x.sub(idx, deepcopy=True)
         return out
+
+
+class multi_qPACT(qPACT):
+    """Mutliple illuminations for the qPACT problem.
+    """
         
+    def setupPDE(self, u0:list):
+        pdes = []
+        for _, u0i in enumerate(u0):
+            pde_handler = PACTvarf(u0i)
+            pdes.append( hp.PDEVariationalProblem(self.Vh, pde_handler, [], [],  is_fwd_linear=True) )
+        
+        self.pde = hp.MultiPDEProblem(pdes)
+
         
 class circularInclusion(dl.UserExpression):
     """Expression implementing a circular inclusion.
