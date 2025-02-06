@@ -60,7 +60,7 @@ class PACTvarf:
         
     def __call__(self, u:dl.Function, m:dl.Function, p:dl.Function) -> ufl.form.Form:
         
-        D, mu = m.split()
+        D, mu = ufl.split(m)
         
         return ufl.inner(ufl.exp(D)*ufl.grad(u), ufl.grad(p))*ufl.dx + \
                ufl.exp(mu)*ufl.inner(u, p)*ufl.dx + \
@@ -79,7 +79,7 @@ class PACTMisfitForm:
         self.d = d
         
     def __call__(self, u, m):
-        _, mu = m.split()
+        _, mu = ufl.split(m)
         return (dl.Constant(0.5/self.sigma2))*ufl.inner(u*ufl.exp(mu) - self.d, u*ufl.exp(mu) - self.d)*ufl.dx
 
 
