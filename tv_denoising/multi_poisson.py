@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 sys.path.append( os.environ.get('HIPPYLIB_PATH') )
 import hippylib as hp
 
-from models import PoissonBox, MultiPoissonBox, splitCircle
+from models import MultiPoissonBox, splitCircle
 from utils import add_noise_to_observations, plotPointwiseObs
 
 # constants, initializations
