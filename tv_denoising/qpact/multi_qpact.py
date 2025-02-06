@@ -24,10 +24,10 @@ DELTA = 1.    # BiLaplacian prior parameter
 
 # for the PD TV solver
 DO_LCURVE = True
-DO_VERIFY = True
+DO_VERIFY = False
 VERBOSE = True
 TVONLY = [True, False, True]
-ALPHA = 1e0  # regularization parameter, picked from L-curve
+ALPHA = 1e2  # regularization parameter, picked from L-curve
 BETA = 1e-3
 PEPS = 0.5  # mass matrix scaling in preconditioner
 MAX_ITER = 1000
@@ -42,7 +42,7 @@ mu_a_background = 0.01  # background absorption coefficient
 mu_a_inclusion = 0.2    # inclusion absorption coefficient
 D_background = 33       # background diffusion coefficient
 D_inclusion = 0.2       # inclusion diffusion coefficient
-u0 = [ dl.Expression("2*x[0] > 0", degree=1), dl.Expression("2*x[0] < 0", degree=1), dl.Expression("2*x[1] > 0", degree=1) ]  # incident fluence
+u0 = [ dl.Expression("x[0] > 0", degree=1), dl.Expression("x[0] < 0", degree=1), dl.Expression("x[1] > 0", degree=1) ]  # incident fluence
 
 ##################################################
 # set up the problem
@@ -63,8 +63,7 @@ qpact.setupPDE(u0fun)
 # setup the true parameter, generate noisy observations, setup the misfit
 ##################################################
 rprint(COMM, SEP)
-rprint(COMM, "Set up the true parameter, generate noisy observations.")
-rprint(COMM, SEP)
+rprint(COMM, "Setting up the true parameter.")
 
 mu_a_true_expr = circularInclusion(cx=C[0], cy=C[1], r=R, vin=np.log(mu_a_inclusion), vo=np.log(mu_a_background))
 mu_a_fun_true = dl.interpolate(mu_a_true_expr, qpact.Vhm0)
@@ -85,12 +84,15 @@ plt.close()
 u_true = qpact.pde.generate_state()
 
 x_true = [u_true, m_fun_true.vector(), None]
+rprint(COMM, "Solving forward model to generate state.")
 qpact.pde.solveFwd(u_true, x_true)
 
 u_fun_true = [ hp.vector2Function(u_true.data[i], qpact.Vh[hp.STATE]) for i in range(u_true.nv) ]
 state_names = [f"Illumination {i}" for i in range(u_true.nv)]
 
 # add noise to the observations
+rprint(COMM, "Generating noisy observations.")
+rprint(COMM, SEP)
 noisy_data = []
 for i in range(u_true.nv):
     noisy_data.append( dl.project(u_fun_true[i]*ufl.exp(m_fun_true.sub(1)), qpact.Vh[hp.STATE]) )
@@ -102,7 +104,7 @@ hp.nb.multi1_plot(u_fun_true, state_names, same_colorbar=True)
 plt.savefig(os.path.join(FIG_DIR, "true_state.png"))
 plt.close()
 
-hp.nb.multi1_plot(noisy_data, state_names, same_colorbar=True)
+hp.nb.multi1_plot(noisy_data, state_names, same_colorbar=False)
 plt.savefig(os.path.join(FIG_DIR, "noisy_data.png"))
 plt.close()
 
@@ -139,8 +141,6 @@ model = hp.Model(qpact.pde, gaussian_prior, misfit)
 hp.modelVerify(model, m0=m0.vector(), misfit_only=True) if DO_VERIFY else None
 ##################################################
 
-xg = [model.generate_vector(hp.STATE), m0.vector(), model.generate_vector(hp.ADJOINT)]
-
 # instantiate the solver and solve
 parameters = hp.ReducedSpaceNewtonCG_ParameterList()
 parameters["rel_tolerance"] = 1e-6
@@ -153,7 +153,7 @@ if COMM.rank != 0:
     parameters["print_level"] = -1
     
 solver = hp.ReducedSpaceNewtonCG(model, parameters)
-xg = solver.solve(xg)
+xg = solver.solve( [model.generate_vector(hp.STATE), m0.vector(), model.generate_vector(hp.ADJOINT)] )
 
 mg_fun = hp.vector2Function(xg[hp.PARAMETER], qpact.Vh[hp.PARAMETER], name = "m_map")
 ug_fun = [ hp.vector2Function(xg[hp.STATE].data[i], qpact.Vh[hp.STATE]) for i in range(u_true.nv) ]
@@ -198,7 +198,7 @@ if DO_LCURVE:
     rprint(COMM, "Running L-Curve analysis to determine TV regularization coefficient.")
     rprint(COMM, SEP)
     
-    ALPHAS = np.logspace(2, -4, num=16, base=10)
+    ALPHAS = np.logspace(6, 0, num=16, base=10)
     misfits = np.zeros_like(ALPHAS)
     regs = np.zeros_like(ALPHAS)
     
