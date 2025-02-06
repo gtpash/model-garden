@@ -27,6 +27,8 @@ BETA = 1e-4  # mollifier for TV regularization
 LUMPING = True
 # PEPS = 1.  # full mass matrix
 PEPS = 0.5*ALPHA  # mass matrix scaled with TV
+FIG_DIR = "figs/image"
+os.makedirs(FIG_DIR, exist_ok=True)  # ensure figure directory exists
 
 ## set up the mesh, mpi communicator, and function spaces
 img = sio.loadmat("circles.mat")["im"]
@@ -91,11 +93,13 @@ vmax = np.max(d.vector().get_local())
 # show the images
 plt.plot()
 dl.plot(d)
-plt.show()
+plt.savefig(os.path.join(FIG_DIR, "noisy.png"))
+plt.close()
 
 plt.plot()
 dl.plot(m_true)
-plt.show()
+plt.savefig(os.path.join(FIG_DIR, "true.png"))
+plt.close()
 
 # set up the misfit (noise variance set to 1, since we don't scale misfit for image denoising)
 misfit = hp.ContinuousStateObservation(Vh=Vh[hp.STATE], dX=ufl.dx, data=d.vector(), noise_variance=1., bcs=[bc])
@@ -128,4 +132,5 @@ xfun = [hp.vector2Function(x[i], Vh[i], name=xfunname[i]) for i in range(len(Vh)
 # show off your denoised image
 plt.plot()
 dl.plot(xfun[hp.PARAMETER])
-plt.show()
+plt.savefig(os.path.join(FIG_DIR, "denoised.png"))
+plt.close()
