@@ -210,7 +210,9 @@ if DO_LCURVE:
         model = hp.ModelNS(qpact.pde, misfit, None, nsprior, which=TVONLY)
         solver = hp.ReducedSpacePDNewtonCG(model, parameters=solver_params)
         
-        # solve the system
+        qpact.assigner.assign(m0, [mu_D, mu_mu_a])  # reset initial condition
+        
+        # solve the system        
         start = time.perf_counter()
         x = solver.solve([None, m0.vector(), None, None])
         if VERBOSE:
