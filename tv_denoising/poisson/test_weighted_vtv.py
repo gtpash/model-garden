@@ -57,6 +57,10 @@ p3mtrue = dl.interpolate(expr, mp.Vhm0)
 mtrue = dl.Function(mp.Vh[hp.PARAMETER])
 mp.assigner.assign(mtrue, [p1mtrue, p2mtrue, p3mtrue])
 
+# solve the model forward
+utrue = mp.pde.generate_state()
+mp.pde.solveFwd(utrue, [utrue, mtrue.vector(), None])
+
 ##################################################
 # UFL derived expressions for the gradient / hessian
 ##################################################
